@@ -142,16 +142,23 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Clientes
       </button>
-      <button class="nav-item" data-view="callcenters">
+      <button class="nav-item" data-view="callcenters" data-admin-only>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
         Call Centers
       </button>
-      <button class="nav-item" data-view="equipo">
+      <button class="nav-item" data-view="equipo" data-admin-only>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>
         Equipo
       </button>
+      <button class="nav-item" data-view="usuarios" data-admin-only>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Usuarios
+      </button>
     </nav>
-    <div class="sidebar-foot">Datos guardados en este dispositivo</div>
+    <div class="sidebar-foot">
+      <div id="sidebar-user" style="margin-bottom:8px"></div>
+      <button type="button" id="btn-logout" class="btn btn-ghost" style="width:100%;padding:7px;font-size:12.5px">Cerrar sesión</button>
+    </div>
   </div>
 
   <main>
@@ -303,7 +310,7 @@
           <h1>Clientes</h1>
           <p>Historial de atenciones y base para el informe de manifiesto.</p>
         </div>
-        <button class="btn btn-accent" id="btn-exportar">Exportar informe (.xlsx)</button>
+        <button class="btn btn-accent" id="btn-exportar" data-roles="administrador,gerente">Exportar informe (.xlsx)</button>
       </div>
       <div class="toolbar">
         <input class="search" type="text" id="buscar-cliente" placeholder="Buscar por nombre, consultor o closer...">
@@ -402,7 +409,75 @@
         </div>
       </div>
     </section>
+
+    <!-- USUARIOS -->
+    <section id="view-usuarios" style="display:none">
+      <div class="page-head">
+        <div>
+          <h1>Usuarios</h1>
+          <p>Crea los accesos del equipo y asigna su rol.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:20px">
+        <form id="form-usuario">
+          <div class="grid three">
+            <div class="field"><label>Nombre completo</label><input type="text" id="u-nombre" required></div>
+            <div class="field"><label>Usuario (login)</label><input type="text" id="u-usuario" required autocomplete="off"></div>
+            <div class="field"><label>Contraseña</label><input type="password" id="u-password" required autocomplete="new-password"></div>
+          </div>
+          <div class="grid three" style="margin-top:14px">
+            <div class="field">
+              <label>Rol</label>
+              <select id="u-rol">
+                <option value="administrador">Administrador</option>
+                <option value="consultor">Consultor</option>
+                <option value="closer">Closer</option>
+                <option value="gerente">Gerente</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Crear usuario</button>
+          </div>
+        </form>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th></th></tr>
+            </thead>
+            <tbody id="tabla-usuarios"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="usuarios-empty" style="display:none">
+          <h3>Todavía no hay usuarios adicionales</h3>
+          <p>Crea el primero con el formulario de arriba.</p>
+        </div>
+      </div>
+    </section>
   </main>
+</div>
+
+<div class="modal-bg" id="pantalla-login">
+  <div class="modal" style="width:380px">
+    <h3 style="margin-bottom:4px">Duo Vital · CRM</h3>
+    <p class="modal-sub">Inicia sesión para continuar</p>
+    <form id="form-login">
+      <div class="field" style="margin-bottom:12px">
+        <label>Usuario</label>
+        <input type="text" id="login-usuario" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="login-password" required autocomplete="current-password">
+      </div>
+      <p id="login-error" style="color:var(--danger);font-size:13px;margin:10px 0 0;display:none"></p>
+      <div class="form-actions" style="margin-top:18px">
+        <button type="submit" class="btn btn-primary" style="width:100%">Entrar</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -424,9 +499,12 @@
   let clientes = [];
   let callCenters = [];
   let equipo = { consultor: [], closer: [], gerente: [] };
+  let usuarios = [];
+  let currentUser = null;
 
   async function apiGet(path){
     const r = await fetch(API+path);
+    if(r.status===401){ showLogin(); throw new Error('No autenticado'); }
     if(!r.ok) throw new Error('GET '+path+' failed');
     return r.json();
   }
@@ -436,13 +514,18 @@
       headers: body ? {'Content-Type':'application/json'} : undefined,
       body: body ? JSON.stringify(body) : undefined
     });
-    if(!r.ok) throw new Error(method+' '+path+' failed');
+    if(r.status===401){ showLogin(); throw new Error('No autenticado'); }
+    if(!r.ok){
+      let msg = method+' '+path+' failed';
+      try{ const j = await r.json(); if(j.error) msg = j.error; }catch(e){}
+      throw new Error(msg);
+    }
     return r.json();
   }
 
   async function loadAll(){
-    try{ clientes = await apiGet('/clientes'); }catch(e){ clientes = []; showToast('No se pudieron cargar los clientes'); }
-    try{ callCenters = await apiGet('/callcenters'); }catch(e){ callCenters = []; showToast('No se pudieron cargar los call centers'); }
+    try{ clientes = await apiGet('/clientes'); }catch(e){ clientes = []; }
+    try{ callCenters = await apiGet('/callcenters'); }catch(e){ callCenters = []; }
     try{ equipo = await apiGet('/equipo'); }catch(e){ equipo = { consultor: [], closer: [], gerente: [] }; }
   }
 
@@ -466,8 +549,75 @@
     return n ? '$'+n.toLocaleString('es-CO') : '—';
   }
 
+  // ---------- Sesión / roles ----------
+  const ROL_LABELS = { administrador:'Administrador', consultor:'Consultor', closer:'Closer', gerente:'Gerente' };
+  function showLogin(){
+    currentUser = null;
+    document.getElementById('pantalla-login').style.display='flex';
+  }
+  function hideLogin(){
+    document.getElementById('pantalla-login').style.display='none';
+  }
+  function applyRoleUI(){
+    const isAdmin = currentUser && currentUser.rol==='administrador';
+    document.querySelectorAll('[data-admin-only]').forEach(el=>{
+      el.style.display = isAdmin ? '' : 'none';
+    });
+    document.querySelectorAll('[data-roles]').forEach(el=>{
+      const roles = el.dataset.roles.split(',');
+      el.style.display = (currentUser && roles.includes(currentUser.rol)) ? '' : 'none';
+    });
+    document.getElementById('sidebar-user').innerHTML = currentUser
+      ? `<div style="font-weight:600;color:#fff">${escapeHtml(currentUser.nombre)}</div><div style="color:#9FC6C0">${ROL_LABELS[currentUser.rol]||currentUser.rol}</div>`
+      : '';
+  }
+
+  document.getElementById('form-login').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const errEl = document.getElementById('login-error');
+    errEl.style.display='none';
+    try{
+      const r = await fetch(API+'/login', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          usuario: document.getElementById('login-usuario').value.trim(),
+          password: document.getElementById('login-password').value
+        })
+      });
+      if(!r.ok){
+        const j = await r.json().catch(()=>({}));
+        errEl.textContent = j.error || 'Usuario o contraseña incorrectos';
+        errEl.style.display='';
+        return;
+      }
+      currentUser = await r.json();
+      document.getElementById('form-login').reset();
+      hideLogin();
+      applyRoleUI();
+      await bootApp();
+    }catch(e){
+      errEl.textContent = 'No se pudo conectar. Intenta de nuevo.';
+      errEl.style.display='';
+    }
+  });
+
+  document.getElementById('btn-logout').addEventListener('click', async ()=>{
+    try{ await fetch(API+'/logout', { method:'POST' }); }catch(e){}
+    showLogin();
+  });
+
+  async function bootApp(){
+    await loadAll();
+    updateDatalistsPlaceholder();
+    populateCallCenterSelect();
+    populateEquipoSelects();
+    renderClientes();
+  }
+  function updateDatalistsPlaceholder(){ /* no-op, mantenido por compatibilidad */ }
+
   // ---------- Navigation ----------
-  const views = ['registro','clientes','callcenters','equipo'];
+  const views = ['registro','clientes','callcenters','equipo','usuarios'];
   document.querySelectorAll('.nav-item').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
@@ -477,6 +627,7 @@
       if(v==='clientes') renderClientes();
       if(v==='callcenters') renderCallCenters();
       if(v==='equipo') renderEquipo();
+      if(v==='usuarios') renderUsuarios();
     });
   });
 
@@ -534,6 +685,51 @@
       if((equipo[tipo]||[]).some(p=>p.nombre===current)) select.value = current;
     });
   }
+
+  // ---------- Usuarios ----------
+  async function renderUsuarios(){
+    try{ usuarios = await apiGet('/usuarios'); }catch(e){ usuarios = []; return; }
+    const tbody = document.getElementById('tabla-usuarios');
+    const empty = document.getElementById('usuarios-empty');
+    if(usuarios.length===0){
+      tbody.innerHTML='';
+      empty.style.display='';
+      return;
+    }
+    empty.style.display='none';
+    tbody.innerHTML = usuarios.map(u=>`
+      <tr>
+        <td class="name-cell">${escapeHtml(u.nombre)}</td>
+        <td>${escapeHtml(u.usuario)}</td>
+        <td>${ROL_LABELS[u.rol]||u.rol}</td>
+        <td>${currentUser && String(currentUser.id)===String(u.id) ? '<span class="sub">(tú)</span>' : `<button type="button" class="btn btn-ghost" data-eliminar-usuario="${u.id}" style="padding:6px 12px;font-size:13px">Eliminar</button>`}</td>
+      </tr>`).join('');
+    tbody.querySelectorAll('[data-eliminar-usuario]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        try{
+          await apiSend('DELETE', '/usuarios/'+btn.dataset.eliminarUsuario);
+          renderUsuarios();
+          showToast('Usuario eliminado');
+        }catch(e){ showToast(e.message||'No se pudo eliminar'); }
+      });
+    });
+  }
+
+  document.getElementById('form-usuario').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const body = {
+      nombre: document.getElementById('u-nombre').value.trim(),
+      usuario: document.getElementById('u-usuario').value.trim(),
+      password: document.getElementById('u-password').value,
+      rol: document.getElementById('u-rol').value
+    };
+    try{
+      await apiSend('POST', '/usuarios', body);
+      document.getElementById('form-usuario').reset();
+      renderUsuarios();
+      showToast('Usuario creado: '+body.nombre);
+    }catch(e){ showToast(e.message||'No se pudo crear el usuario'); }
+  });
 
   // ---------- Call Centers ----------
   function renderCallCenters(){
@@ -894,10 +1090,16 @@
 
   // ---------- Init ----------
   (async function init(){
-    await loadAll();
-    populateCallCenterSelect();
-    populateEquipoSelects();
-    renderClientes();
+    try{
+      const r = await fetch(API+'/me');
+      if(!r.ok) throw new Error('No autenticado');
+      currentUser = await r.json();
+      hideLogin();
+      applyRoleUI();
+      await bootApp();
+    }catch(e){
+      showLogin();
+    }
   })();
 })();
 </script>

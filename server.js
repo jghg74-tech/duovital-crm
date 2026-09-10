@@ -1,9 +1,18 @@
 const express = require('express');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const path = require('path');
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(express.json());
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'duovital-crm-secret-2026',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: 'auto', httpOnly: true, maxAge: 1000 * 60 * 60 * 8 }
+}));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const pool = new Pool({
@@ -11,6 +20,21 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('render.com')
     ? { rejectUnauthorized: false }
     : false
+});
+
+function requireAuth(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+  next();
+}
+function requireAdmin(req, res, next) {
+  if (!req.session.user || req.session.user.rol !== 'administrador') {
+    return res.status(403).json({ error: 'No autorizado' });
+  }
+  next();
+}
+app.use('/api', (req, res, next) => {
+  if (req.path === '/login' || req.path === '/health') return next();
+  requireAuth(req, res, next);
 });
 
 async function initDb() {
@@ -30,6 +54,14 @@ async function initDb() {
       id SERIAL PRIMARY KEY,
       tipo TEXT NOT NULL CHECK (tipo IN ('consultor','closer','gerente')),
       nombre TEXT NOT NULL,
+      creado TIMESTAMPTZ DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS usuarios (
+      id SERIAL PRIMARY KEY,
+      nombre TEXT NOT NULL,
+      usuario TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      rol TEXT NOT NULL CHECK (rol IN ('administrador','consultor','closer','gerente')),
       creado TIMESTAMPTZ DEFAULT now()
     );
     CREATE TABLE IF NOT EXISTS clientes (
@@ -135,7 +167,7 @@ app.get('/api/callcenters', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al leer call centers' }); }
 });
 
-app.post('/api/callcenters', async (req, res) => {
+app.post('/api/callcenters', requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query(
       'INSERT INTO call_centers (nombre) VALUES ($1) ON CONFLICT (nombre) DO NOTHING RETURNING id, nombre',
@@ -146,14 +178,14 @@ app.post('/api/callcenters', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al crear call center' }); }
 });
 
-app.delete('/api/callcenters/:id', async (req, res) => {
+app.delete('/api/callcenters/:id', requireAdmin, async (req, res) => {
   try {
     await pool.query('DELETE FROM call_centers WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar call center' }); }
 });
 
-app.post('/api/callcenters/:id/tmks', async (req, res) => {
+app.post('/api/callcenters/:id/tmks', requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query(
       'INSERT INTO tmks (call_center_id, codigo) VALUES ($1, $2) RETURNING id, codigo',
@@ -163,7 +195,7 @@ app.post('/api/callcenters/:id/tmks', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al agregar TMK' }); }
 });
 
-app.delete('/api/tmks/:id', async (req, res) => {
+app.delete('/api/tmks/:id', requireAdmin, async (req, res) => {
   try {
     await pool.query('DELETE FROM tmks WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
@@ -180,7 +212,7 @@ app.get('/api/equipo', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al leer equipo' }); }
 });
 
-app.post('/api/equipo', async (req, res) => {
+app.post('/api/equipo', requireAdmin, async (req, res) => {
   try {
     const { tipo, nombre } = req.body;
     if (!['consultor', 'closer', 'gerente'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido' });
@@ -192,17 +224,88 @@ app.post('/api/equipo', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al agregar' }); }
 });
 
-app.delete('/api/equipo/:id', async (req, res) => {
+app.delete('/api/equipo/:id', requireAdmin, async (req, res) => {
   try {
     await pool.query('DELETE FROM equipo WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar' }); }
 });
 
+// ---------- Autenticación ----------
+app.post('/api/login', async (req, res) => {
+  try {
+    const { usuario, password } = req.body;
+    const { rows } = await pool.query('SELECT * FROM usuarios WHERE usuario = $1', [usuario]);
+    const u = rows[0];
+    if (!u) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    const ok = await bcrypt.compare(password || '', u.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    req.session.user = { id: u.id, nombre: u.nombre, usuario: u.usuario, rol: u.rol };
+    res.json(req.session.user);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al iniciar sesión' }); }
+});
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(() => res.json({ ok: true }));
+});
+
+app.get('/api/me', (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
+  res.json(req.session.user);
+});
+
+// ---------- Usuarios (solo administrador) ----------
+app.get('/api/usuarios', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, nombre, usuario, rol FROM usuarios ORDER BY nombre');
+    res.json(rows);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al leer usuarios' }); }
+});
+
+app.post('/api/usuarios', requireAdmin, async (req, res) => {
+  try {
+    const { nombre, usuario, password, rol } = req.body;
+    if (!nombre || !usuario || !password || !rol) return res.status(400).json({ error: 'Faltan datos' });
+    if (!['administrador', 'consultor', 'closer', 'gerente'].includes(rol)) return res.status(400).json({ error: 'Rol inválido' });
+    const hash = await bcrypt.hash(password, 10);
+    const { rows } = await pool.query(
+      'INSERT INTO usuarios (nombre, usuario, password_hash, rol) VALUES ($1,$2,$3,$4) RETURNING id, nombre, usuario, rol',
+      [nombre, usuario, hash, rol]
+    );
+    res.json(rows[0]);
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'Ese usuario ya existe' });
+    console.error(e); res.status(500).json({ error: 'Error al crear usuario' });
+  }
+});
+
+app.delete('/api/usuarios/:id', requireAdmin, async (req, res) => {
+  try {
+    if (String(req.session.user.id) === String(req.params.id)) {
+      return res.status(400).json({ error: 'No puedes eliminar tu propio usuario' });
+    }
+    await pool.query('DELETE FROM usuarios WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar usuario' }); }
+});
+
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+async function seedAdmin() {
+  const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM usuarios');
+  if (rows[0].n === 0) {
+    const hash = await bcrypt.hash('duovital2026', 10);
+    await pool.query(
+      'INSERT INTO usuarios (nombre, usuario, password_hash, rol) VALUES ($1,$2,$3,$4)',
+      ['Administrador', 'admin', hash, 'administrador']
+    );
+    console.log('Usuario admin creado por defecto (admin / duovital2026) - cámbialo cuanto antes.');
+  }
+}
 
 const PORT = process.env.PORT || 3000;
 initDb()
+  .then(seedAdmin)
   .then(() => {
     app.listen(PORT, () => console.log('Duo Vital CRM escuchando en puerto ' + PORT));
   })
