@@ -1,19 +1,9 @@
 const express = require('express');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const path = require('path');
-
-const app = express();
-app.set('trust proxy', 1);
-app.use(express.json());
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'duovital-crm-secret-2026',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: 'auto', httpOnly: true, maxAge: 1000 * 60 * 60 * 8 }
-}));
-app.use(express.static(path.join(__dirname, 'public')));
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -21,6 +11,18 @@ const pool = new Pool({
     ? { rejectUnauthorized: false }
     : false
 });
+
+const app = express();
+app.set('trust proxy', 1);
+app.use(express.json());
+app.use(session({
+  store: new pgSession({ pool, tableName: 'session', createTableIfMissing: true }),
+  secret: process.env.SESSION_SECRET || 'duovital-crm-secret-2026',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: 'auto', httpOnly: true, maxAge: 1000 * 60 * 60 * 24 * 7 }
+}));
+app.use(express.static(path.join(__dirname, 'public')));
 
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
