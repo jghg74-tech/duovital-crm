@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Duo Vital · CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#F5FAF9;
+    --surface:#FFFFFF;
+    --ink:#153732;
+    --ink-soft:#5C7A75;
+    --ink-faint:#93ACA7;
+    --primary:#0F6B63;
+    --primary-dark:#0A4A44;
+    --primary-soft:#E3F1EE;
+    --accent:#FF6F52;
+    --accent-soft:#FFE9E3;
+    --border:#DCE9E5;
+    --border-soft:#EAF2F0;
+    --danger:#C1521A;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);}
+  h1,h2,h3,.brand{font-family:'Fraunces',serif;}
+  ::selection{background:var(--primary-soft);}
+
+  .app{display:flex;min-height:100vh;}
+
+  .sidebar{width:236px;flex-shrink:0;background:var(--primary-dark);color:#EAF4F2;display:flex;flex-direction:column;padding:28px 18px;}
+  .brand-block{padding:0 8px 26px 8px;border-bottom:1px solid rgba(234,244,242,0.15);margin-bottom:22px;}
+  .brand{font-size:23px;font-weight:600;letter-spacing:0.2px;color:#fff;line-height:1.1;}
+  .brand-sub{font-size:12.5px;color:#9FC6C0;margin-top:4px;}
+  nav{display:flex;flex-direction:column;gap:3px;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;color:#CFE6E2;font-size:14.5px;font-weight:500;cursor:pointer;border:none;background:none;text-align:left;width:100%;transition:background .12s;}
+  .nav-item:hover{background:rgba(234,244,242,0.08);}
+  .nav-item.active{background:var(--primary);color:#fff;}
+  .nav-item svg{width:17px;height:17px;flex-shrink:0;}
+  .sidebar-foot{margin-top:auto;padding:12px 8px 0 8px;font-size:11.5px;color:#6E9691;border-top:1px solid rgba(234,244,242,0.15);}
+
+  main{flex:1;padding:34px 40px 60px;max-width:1220px;}
+  .page-head{margin-bottom:26px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;}
+  .page-head h1{font-size:26px;font-weight:600;margin:0 0 4px;}
+  .page-head p{margin:0;color:var(--ink-soft);font-size:14.5px;}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:26px;}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 20px;}
+  .grid.three{grid-template-columns:1fr 1fr 1fr;}
+  .grid.tight{gap:6px 16px;margin-bottom:4px;}
+  .grid.flow{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));}
+  .field{display:flex;flex-direction:column;gap:3px;}
+  .field.full{grid-column:1/-1;}
+  .section-label.tight{margin:8px 0 4px;padding-top:6px;}
+  .chk-row{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink);font-weight:500;}
+  .chk-row input{width:16px;height:16px;}
+  label{font-size:12.5px;font-weight:600;color:var(--ink-soft);}
+  input,select,textarea{font-family:'Inter',sans-serif;font-size:14.5px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#FCFEFE;color:var(--ink);outline:none;}
+  input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft);}
+  textarea{resize:vertical;min-height:60px;}
+  .hint{font-size:11.5px;color:var(--ink-faint);margin-top:-2px;}
+
+  .section-label{font-size:12px;font-weight:700;text-transform:none;color:var(--primary-dark);margin:22px 0 12px;padding-top:16px;border-top:1px solid var(--border-soft);}
+  .section-label:first-child{margin-top:0;padding-top:0;border-top:none;}
+
+  .toggle-row{display:flex;gap:8px;}
+  .toggle-btn{flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#FCFEFE;font-size:14px;font-weight:600;cursor:pointer;color:var(--ink-soft);}
+  .toggle-btn.yes.active{background:var(--primary-soft);border-color:var(--primary);color:var(--primary-dark);}
+  .toggle-btn.no.active{background:#F5F0EC;border-color:var(--ink-faint);color:var(--ink);}
+
+  .btn{font-family:'Inter',sans-serif;font-weight:600;font-size:14.5px;padding:11px 20px;border-radius:8px;border:none;cursor:pointer;}
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-primary:hover{background:var(--primary-dark);}
+  .btn-ghost{background:none;border:1px solid var(--border);color:var(--ink);}
+  .btn-ghost:hover{background:var(--border-soft);}
+  .btn-accent{background:var(--accent);color:#fff;}
+  .btn-accent:hover{background:#E85B3F;}
+  .form-actions{margin-top:22px;display:flex;justify-content:flex-end;gap:10px;}
+
+  .toast{position:fixed;bottom:26px;right:26px;background:var(--primary-dark);color:#fff;padding:13px 20px;border-radius:9px;font-size:14px;font-weight:500;box-shadow:0 8px 24px rgba(10,74,68,0.25);opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;z-index:80;}
+  .toast.show{opacity:1;transform:translateY(0);}
+
+  .toolbar{display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap;}
+  .search{flex:1;max-width:300px;}
+  .count-pill{font-size:12.5px;color:var(--ink-soft);background:var(--border-soft);padding:5px 11px;border-radius:999px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.3px;}
+  thead th{text-align:left;font-size:11px;color:var(--ink-soft);font-weight:600;padding:0 10px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  tbody td{padding:12px 10px;border-bottom:1px solid var(--border-soft);vertical-align:middle;white-space:nowrap;}
+  tbody tr:hover{background:#FAFDFC;}
+  .name-cell{font-weight:600;}
+  .sub{color:var(--ink-soft);font-size:12px;}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:600;margin-right:4px;}
+  .badge.si{background:var(--primary-soft);color:var(--primary-dark);}
+  .badge.no{background:#F5F0EC;color:#8A7A6E;}
+  .badge.nt{background:var(--accent-soft);color:var(--danger);}
+  .empty-state{padding:50px 20px;text-align:center;color:var(--ink-soft);}
+  .empty-state h3{margin:0 0 6px;color:var(--ink);}
+  .num{text-align:right;font-variant-numeric:tabular-nums;}
+  .modal-bg{position:fixed;inset:0;background:rgba(21,55,50,0.35);display:flex;align-items:center;justify-content:center;z-index:90;padding:20px;}
+  .modal{background:#fff;border-radius:14px;padding:28px;width:560px;max-width:100%;max-height:85vh;overflow:auto;}
+  .modal h3{margin:0 0 4px;}
+  .modal .modal-sub{color:var(--ink-soft);font-size:13px;margin:0 0 18px;}
+  .ficha-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;font-size:13.5px;}
+  .ficha-grid .full{grid-column:1/-1;}
+  .ficha-grid dt{font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:2px;}
+  .ficha-grid dd{margin:0 0 8px;}
+  .modal-close-row{display:flex;justify-content:flex-end;margin-top:18px;}
+  .cc-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:12px;}
+  .cc-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .cc-card-head h3{margin:0;font-size:15.5px;font-weight:600;font-family:'Inter',sans-serif;}
+  .tmk-chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px;}
+  .tmk-chip{display:flex;align-items:center;gap:6px;background:var(--primary-soft);color:var(--primary-dark);font-size:12.5px;font-weight:600;padding:5px 6px 5px 11px;border-radius:999px;}
+  .tmk-chip button{background:none;border:none;color:var(--primary-dark);cursor:pointer;font-size:14px;line-height:1;padding:0 3px;opacity:.6;}
+  .tmk-chip button:hover{opacity:1;}
+  .tmk-empty{font-size:12.5px;color:var(--ink-faint);margin-bottom:10px;}
+  .tmk-add-row{display:flex;gap:8px;}
+  .tmk-add-row input{flex:1;padding:7px 10px;font-size:13px;}
+  .tmk-add-row button{padding:7px 14px;font-size:13px;}
+  .equipo-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:13.8px;}
+  .equipo-item:last-child{border-bottom:none;}
+  .equipo-item button{background:none;border:none;color:var(--danger);cursor:pointer;font-size:12.5px;font-weight:600;}
+  .equipo-empty{font-size:12.5px;color:var(--ink-faint);padding:6px 0;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="brand-block">
+      <div class="brand">Duo Vital</div>
+      <div class="brand-sub">CRM de atención y ventas</div>
+    </div>
+    <nav>
+      <button class="nav-item active" data-view="registro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Registrar cliente
+      </button>
+      <button class="nav-item" data-view="clientes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Clientes
+      </button>
+      <button class="nav-item" data-view="callcenters">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        Call Centers
+      </button>
+      <button class="nav-item" data-view="equipo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>
+        Equipo
+      </button>
+    </nav>
+    <div class="sidebar-foot">Datos guardados en este dispositivo</div>
+  </div>
+
+  <main>
+    <!-- REGISTRO -->
+    <section id="view-registro">
+      <div class="page-head">
+        <div>
+          <h1>Registrar atención</h1>
+        </div>
+      </div>
+      <div class="card">
+        <form id="form-cliente">
+
+          <div class="section-label tight">Datos del usuario</div>
+          <div class="grid tight">
+            <div class="field"><label>Nombre completo</label><input type="text" id="f-usuario" required></div>
+            <div class="field"><label>Edad</label><input type="number" id="f-edad" min="0"></div>
+          </div>
+          <div class="grid tight">
+            <div class="field"><label>Nombre del acompañante</label><input type="text" id="f-acompanante"></div>
+            <div class="field"><label>Edad</label><input type="number" id="f-edad-acomp" min="0"></div>
+          </div>
+          <div class="grid tight">
+            <div class="field"><label>Documento</label><input type="text" id="f-documento"></div>
+            <div class="field"><label>Fecha de nacimiento</label><input type="date" id="f-fecha-nacimiento"></div>
+          </div>
+          <div class="grid tight">
+            <div class="field full"><label>Dirección</label><input type="text" id="f-direccion"></div>
+          </div>
+          <div class="grid tight three">
+            <div class="field"><label>Enfermedades</label><input type="text" id="f-enfermedades"></div>
+            <div class="field"><label>Teléfono</label><input type="text" id="f-telefono"></div>
+            <div class="field"><label>Ocupación</label><input type="text" id="f-ocupacion"></div>
+          </div>
+          <div class="grid tight flow">
+            <div class="field"><label>Medicamentos</label><input type="text" id="f-medicamentos"></div>
+            <div class="field"><label>Alergias</label><input type="text" id="f-alergias"></div>
+            <div class="field"><label>Estado civil</label><input type="text" id="f-estado-civil"></div>
+            <div class="field"><label>Eps</label><input type="text" id="f-eps"></div>
+            <div class="field"><label>RH</label><input type="text" id="f-rh"></div>
+          </div>
+
+          <div class="section-label tight">Información adicional dispositivos</div>
+          <div class="grid tight flow">
+            <div class="field">
+              <label>¿Dispositivos?</label>
+              <div class="toggle-row">
+                <button type="button" class="toggle-btn yes" id="btn-disp-si">Sí</button>
+                <button type="button" class="toggle-btn no active" id="btn-disp-no">No</button>
+              </div>
+            </div>
+            <div class="field"><label>¿Cuál?</label><input type="text" id="f-disp-cual"></div>
+            <div class="field"><label>Cirugías (cuál)</label><input type="text" id="f-cirugias"></div>
+          </div>
+          <div class="grid tight">
+            <div class="field full"><label>Observación</label><textarea id="f-observacion-usuario" style="min-height:44px"></textarea></div>
+          </div>
+          <label class="chk-row">
+            <input type="checkbox" id="f-firma">
+            Autorización de tratamiento de datos personales firmada
+          </label>
+
+          <div class="section-label">Proceso comercial</div>
+          <div class="grid three">
+            <div class="field"><label>Fecha</label><input type="date" id="f-fecha" required></div>
+            <div class="field">
+              <label>Call Center</label>
+              <select id="f-callcenter">
+                <option value="">Selecciona uno...</option>
+              </select>
+              <div class="hint" id="callcenter-hint" style="display:none">No hay call center creados todavía. Ve a la pestaña "Call Centers" para crear el primero.</div>
+            </div>
+            <div class="field">
+              <label>TMK</label>
+              <select id="f-outsorsing">
+                <option value="">Selecciona un call center primero...</option>
+              </select>
+              <div class="hint" id="tmk-hint" style="display:none">Este call center todavía no tiene TMK. Agrégalos en la pestaña "Call Centers".</div>
+            </div>
+          </div>
+          <div class="grid three" style="margin-top:18px">
+            <div class="field">
+              <label>Consultor</label>
+              <select id="f-consultor"><option value="">Selecciona uno...</option></select>
+            </div>
+            <div class="field">
+              <label>Closer</label>
+              <select id="f-closer"><option value="">Selecciona uno...</option></select>
+            </div>
+            <div class="field">
+              <label>Gerente</label>
+              <select id="f-gerente"><option value="">Selecciona uno...</option></select>
+            </div>
+          </div>
+
+          <div class="grid three" style="margin-top:18px">
+            <div class="field">
+              <label>¿Tour? (asistió a la cita)</label>
+              <div class="toggle-row">
+                <button type="button" class="toggle-btn yes" id="btn-tour-si">Sí</button>
+                <button type="button" class="toggle-btn no active" id="btn-tour-no">No</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>NT (no asistió)</label>
+              <div class="toggle-row">
+                <button type="button" class="toggle-btn yes" id="btn-nt-si">Sí</button>
+                <button type="button" class="toggle-btn no active" id="btn-nt-no">No</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>¿VTA? (venta realizada)</label>
+              <div class="toggle-row">
+                <button type="button" class="toggle-btn yes" id="btn-vta-si">Sí</button>
+                <button type="button" class="toggle-btn no active" id="btn-vta-no">No</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="wrap-venta" style="display:none">
+            <div class="section-label">Detalle de la venta</div>
+            <div class="grid three">
+              <div class="field"><label>Volumen (COP)</label><input type="number" id="f-volumen" min="0" placeholder="0"></div>
+              <div class="field"><label>Cash (COP)</label><input type="number" id="f-cash" min="0" placeholder="0"></div>
+              <div class="field"><label>Cartera (COP)</label><input type="number" id="f-cartera" min="0" placeholder="0"></div>
+            </div>
+            <div class="grid" style="margin-top:18px">
+              <div class="field"><label>No. Contrato</label><input type="text" id="f-contrato" placeholder="Ej: 342 o RESERVA"></div>
+            </div>
+          </div>
+
+          <div class="section-label">Observaciones</div>
+          <div class="field full">
+            <textarea id="f-observaciones" placeholder="Ej: CREDITO NEGADO/REPORTADO, REPROGRAMADA, etc."></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn btn-ghost" id="btn-limpiar">Limpiar</button>
+            <button type="submit" class="btn btn-primary">Guardar registro</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- CLIENTES -->
+    <section id="view-clientes" style="display:none">
+      <div class="page-head">
+        <div>
+          <h1>Clientes</h1>
+          <p>Historial de atenciones y base para el informe de manifiesto.</p>
+        </div>
+        <button class="btn btn-accent" id="btn-exportar">Exportar informe (.xlsx)</button>
+      </div>
+      <div class="toolbar">
+        <input class="search" type="text" id="buscar-cliente" placeholder="Buscar por nombre, consultor o closer...">
+        <span class="count-pill" id="pill-count">0 clientes</span>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Usuario</th>
+                <th>Edad</th>
+                <th>Ocupación</th>
+                <th>Acompañante</th>
+                <th>Call Center</th>
+                <th>Outsorsing</th>
+                <th>Consultor</th>
+                <th>Closer</th>
+                <th>Gerente</th>
+                <th class="num">Volumen</th>
+                <th class="num">Cash</th>
+                <th class="num">Cartera</th>
+                <th>Contrato</th>
+                <th>Estado</th>
+                <th>Observaciones</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tabla-clientes"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="clientes-empty" style="display:none">
+          <h3>Todavía no hay clientes registrados</h3>
+          <p>Usa "Registrar cliente" para agregar el primero.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CALL CENTERS -->
+    <section id="view-callcenters" style="display:none">
+      <div class="page-head">
+        <div>
+          <h1>Call Centers</h1>
+          <p>Crea y administra la lista de call centers disponibles para el registro.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:20px">
+        <form id="form-callcenter" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="flex:1;min-width:220px">
+            <label>Nombre del call center</label>
+            <input type="text" id="f-cc-nombre" placeholder="Ej: Call Center Bogotá Norte" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Agregar</button>
+        </form>
+      </div>
+      <div id="lista-callcenters"></div>
+      <div class="empty-state" id="callcenters-empty" style="display:none">
+        <h3>Todavía no hay call centers creados</h3>
+        <p>Agrega el primero con el formulario de arriba.</p>
+      </div>
+    </section>
+
+    <!-- EQUIPO -->
+    <section id="view-equipo" style="display:none">
+      <div class="page-head">
+        <div>
+          <h1>Equipo</h1>
+          <p>Consultores, cerradores y gerentes disponibles para asignar en cada atención.</p>
+        </div>
+      </div>
+      <div class="grid three" style="align-items:start">
+        <div class="card" id="equipo-card-consultor">
+          <h3 style="margin:0 0 12px;font-size:15.5px">Consultores</h3>
+          <form class="equipo-form" data-tipo="consultor" style="display:flex;gap:8px;margin-bottom:14px">
+            <input type="text" placeholder="Nombre" data-equipo-input="consultor" style="flex:1">
+            <button type="submit" class="btn btn-primary" style="padding:8px 14px">+</button>
+          </form>
+          <div id="equipo-lista-consultor"></div>
+        </div>
+        <div class="card" id="equipo-card-closer">
+          <h3 style="margin:0 0 12px;font-size:15.5px">Cerradores (Closers)</h3>
+          <form class="equipo-form" data-tipo="closer" style="display:flex;gap:8px;margin-bottom:14px">
+            <input type="text" placeholder="Nombre" data-equipo-input="closer" style="flex:1">
+            <button type="submit" class="btn btn-primary" style="padding:8px 14px">+</button>
+          </form>
+          <div id="equipo-lista-closer"></div>
+        </div>
+        <div class="card" id="equipo-card-gerente">
+          <h3 style="margin:0 0 12px;font-size:15.5px">Gerentes</h3>
+          <form class="equipo-form" data-tipo="gerente" style="display:flex;gap:8px;margin-bottom:14px">
+            <input type="text" placeholder="Nombre" data-equipo-input="gerente" style="flex:1">
+            <button type="submit" class="btn btn-primary" style="padding:8px 14px">+</button>
+          </form>
+          <div id="equipo-lista-gerente"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-bg" id="modal-ficha" style="display:none">
+  <div class="modal">
+    <h3 id="ficha-nombre">Ficha del usuario</h3>
+    <p class="modal-sub" id="ficha-fecha"></p>
+    <dl class="ficha-grid" id="ficha-body"></dl>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" id="ficha-cerrar">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const API = '/api';
+  let clientes = [];
+  let callCenters = [];
+  let equipo = { consultor: [], closer: [], gerente: [] };
+
+  async function apiGet(path){
+    const r = await fetch(API+path);
+    if(!r.ok) throw new Error('GET '+path+' failed');
+    return r.json();
+  }
+  async function apiSend(method, path, body){
+    const r = await fetch(API+path, {
+      method,
+      headers: body ? {'Content-Type':'application/json'} : undefined,
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if(!r.ok) throw new Error(method+' '+path+' failed');
+    return r.json();
+  }
+
+  async function loadAll(){
+    try{ clientes = await apiGet('/clientes'); }catch(e){ clientes = []; showToast('No se pudieron cargar los clientes'); }
+    try{ callCenters = await apiGet('/callcenters'); }catch(e){ callCenters = []; showToast('No se pudieron cargar los call centers'); }
+    try{ equipo = await apiGet('/equipo'); }catch(e){ equipo = { consultor: [], closer: [], gerente: [] }; }
+  }
+
+  function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 2400);
+  }
+  function escapeHtml(s){
+    return String(s==null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function formatFecha(iso){
+    if(!iso) return '';
+    const [y,m,d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  function money(n){
+    n = Number(n||0);
+    return n ? '$'+n.toLocaleString('es-CO') : '—';
+  }
+
+  // ---------- Navigation ----------
+  const views = ['registro','clientes','callcenters','equipo'];
+  document.querySelectorAll('.nav-item').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const v = btn.dataset.view;
+      views.forEach(x=> document.getElementById('view-'+x).style.display = (x===v?'':'none'));
+      if(v==='clientes') renderClientes();
+      if(v==='callcenters') renderCallCenters();
+      if(v==='equipo') renderEquipo();
+    });
+  });
+
+  // ---------- Equipo (consultores, closers, gerentes) ----------
+  const EQUIPO_LABELS = { consultor:'consultor', closer:'cerrador', gerente:'gerente' };
+  function renderEquipo(){
+    ['consultor','closer','gerente'].forEach(tipo=>{
+      const cont = document.getElementById('equipo-lista-'+tipo);
+      const lista = equipo[tipo]||[];
+      cont.innerHTML = lista.length
+        ? lista.map(p=>`<div class="equipo-item"><span>${escapeHtml(p.nombre)}</span><button type="button" data-eliminar-equipo="${tipo}|${p.id}">Eliminar</button></div>`).join('')
+        : `<div class="equipo-empty">Sin ${EQUIPO_LABELS[tipo]}es todavía</div>`;
+    });
+    document.querySelectorAll('[data-eliminar-equipo]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const [tipo, id] = btn.dataset.eliminarEquipo.split('|');
+        try{
+          await apiSend('DELETE', '/equipo/'+id);
+          equipo[tipo] = (equipo[tipo]||[]).filter(p=>String(p.id)!==id);
+          renderEquipo();
+          populateEquipoSelects();
+        }catch(e){ showToast('No se pudo eliminar'); }
+      });
+    });
+  }
+
+  document.querySelectorAll('.equipo-form').forEach(form=>{
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const tipo = form.dataset.tipo;
+      const input = form.querySelector('[data-equipo-input]');
+      const nombre = input.value.trim();
+      if(!nombre) return;
+      equipo[tipo] = equipo[tipo]||[];
+      if(equipo[tipo].some(p=>p.nombre.toLowerCase()===nombre.toLowerCase())){
+        showToast('Ese nombre ya está en la lista');
+        return;
+      }
+      try{
+        const nuevo = await apiSend('POST', '/equipo', { tipo, nombre });
+        equipo[tipo].push({ id: nuevo.id, nombre: nuevo.nombre });
+        input.value='';
+        renderEquipo();
+        populateEquipoSelects();
+      }catch(e){ showToast('No se pudo agregar'); }
+    });
+  });
+
+  function populateEquipoSelects(){
+    [['consultor','f-consultor'],['closer','f-closer'],['gerente','f-gerente']].forEach(([tipo, selId])=>{
+      const select = document.getElementById(selId);
+      const current = select.value;
+      select.innerHTML = '<option value="">Selecciona uno...</option>' +
+        (equipo[tipo]||[]).map(p=>`<option value="${escapeHtml(p.nombre)}">${escapeHtml(p.nombre)}</option>`).join('');
+      if((equipo[tipo]||[]).some(p=>p.nombre===current)) select.value = current;
+    });
+  }
+
+  // ---------- Call Centers ----------
+  function renderCallCenters(){
+    const cont = document.getElementById('lista-callcenters');
+    const empty = document.getElementById('callcenters-empty');
+    if(callCenters.length===0){
+      cont.innerHTML='';
+      empty.style.display='';
+      return;
+    }
+    empty.style.display='none';
+    cont.innerHTML = callCenters.map(cc=>{
+      const tmks = cc.tmks || [];
+      return `
+      <div class="cc-card">
+        <div class="cc-card-head">
+          <h3>${escapeHtml(cc.nombre)}</h3>
+          <button type="button" class="btn btn-ghost" data-eliminar-cc="${cc.id}" style="padding:6px 12px;font-size:13px">Eliminar call center</button>
+        </div>
+        <div class="tmk-chips">
+          ${tmks.length ? tmks.map(t=>`<span class="tmk-chip">${escapeHtml(t.codigo)}<button type="button" data-eliminar-tmk="${cc.id}|${t.id}">✕</button></span>`).join('') : '<span class="tmk-empty">Sin TMK todavía</span>'}
+        </div>
+        <div class="tmk-add-row">
+          <input type="text" placeholder="Nuevo TMK, ej: PC1520" data-tmk-input="${cc.id}">
+          <button type="button" class="btn btn-ghost" data-agregar-tmk="${cc.id}">Agregar TMK</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    cont.querySelectorAll('[data-eliminar-cc]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        try{
+          await apiSend('DELETE', '/callcenters/'+btn.dataset.eliminarCc);
+          callCenters = callCenters.filter(cc=>String(cc.id)!==btn.dataset.eliminarCc);
+          renderCallCenters();
+          populateCallCenterSelect();
+        }catch(e){ showToast('No se pudo eliminar'); }
+      });
+    });
+    cont.querySelectorAll('[data-eliminar-tmk]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const [ccId, tmkId] = btn.dataset.eliminarTmk.split('|');
+        try{
+          await apiSend('DELETE', '/tmks/'+tmkId);
+          const cc = callCenters.find(c=>String(c.id)===ccId);
+          if(cc){ cc.tmks = (cc.tmks||[]).filter(t=>String(t.id)!==tmkId); }
+          renderCallCenters();
+          populateTmkSelect();
+        }catch(e){ showToast('No se pudo eliminar el TMK'); }
+      });
+    });
+    cont.querySelectorAll('[data-agregar-tmk]').forEach(btn=>{
+      btn.addEventListener('click', ()=> agregarTmk(btn.dataset.agregarTmk));
+    });
+    cont.querySelectorAll('[data-tmk-input]').forEach(inp=>{
+      inp.addEventListener('keydown', (e)=>{
+        if(e.key==='Enter'){ e.preventDefault(); agregarTmk(inp.dataset.tmkInput); }
+      });
+    });
+  }
+
+  async function agregarTmk(ccId){
+    const input = document.querySelector(`[data-tmk-input="${ccId}"]`);
+    const codigo = input.value.trim();
+    if(!codigo) return;
+    const cc = callCenters.find(c=>String(c.id)===String(ccId));
+    if(!cc) return;
+    cc.tmks = cc.tmks || [];
+    if(cc.tmks.some(t=>t.codigo.toLowerCase()===codigo.toLowerCase())){
+      showToast('Ese TMK ya existe en este call center');
+      return;
+    }
+    try{
+      const nuevo = await apiSend('POST', '/callcenters/'+ccId+'/tmks', { codigo });
+      cc.tmks.push(nuevo);
+      input.value='';
+      renderCallCenters();
+      populateTmkSelect();
+      showToast('TMK agregado: '+codigo);
+    }catch(e){ showToast('No se pudo agregar el TMK'); }
+  }
+
+  function populateCallCenterSelect(){
+    const select = document.getElementById('f-callcenter');
+    const current = select.value;
+    select.innerHTML = '<option value="">Selecciona uno...</option>' +
+      callCenters.map(cc=>`<option value="${escapeHtml(cc.nombre)}">${escapeHtml(cc.nombre)}</option>`).join('');
+    if(callCenters.some(cc=>cc.nombre===current)) select.value = current;
+    document.getElementById('callcenter-hint').style.display = callCenters.length===0 ? '' : 'none';
+    populateTmkSelect();
+  }
+
+  function populateTmkSelect(){
+    const ccSelect = document.getElementById('f-callcenter');
+    const tmkSelect = document.getElementById('f-outsorsing');
+    const current = tmkSelect.value;
+    const cc = callCenters.find(c=>c.nombre===ccSelect.value);
+    const tmks = cc ? (cc.tmks||[]) : [];
+    if(!ccSelect.value){
+      tmkSelect.innerHTML = '<option value="">Selecciona un call center primero...</option>';
+      document.getElementById('tmk-hint').style.display='none';
+    } else {
+      tmkSelect.innerHTML = '<option value="">Selecciona uno...</option>' +
+        tmks.map(t=>`<option value="${escapeHtml(t.codigo)}">${escapeHtml(t.codigo)}</option>`).join('');
+      document.getElementById('tmk-hint').style.display = tmks.length===0 ? '' : 'none';
+    }
+    if(tmks.some(t=>t.codigo===current)) tmkSelect.value = current;
+  }
+  document.getElementById('f-callcenter').addEventListener('change', populateTmkSelect);
+
+  document.getElementById('form-callcenter').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const input = document.getElementById('f-cc-nombre');
+    const nombre = input.value.trim();
+    if(!nombre) return;
+    if(callCenters.some(cc=>cc.nombre.toLowerCase()===nombre.toLowerCase())){
+      showToast('Ese call center ya existe');
+      return;
+    }
+    try{
+      const nuevo = await apiSend('POST', '/callcenters', { nombre });
+      callCenters.push(nuevo);
+      input.value='';
+      renderCallCenters();
+      populateCallCenterSelect();
+      showToast('Call center agregado: '+nombre);
+    }catch(e){ showToast('No se pudo agregar el call center'); }
+  });
+
+  // ---------- Toggles ----------
+  function makeToggle(idYes, idNo, initial, onChange){
+    let val = initial;
+    const btnYes = document.getElementById(idYes);
+    const btnNo = document.getElementById(idNo);
+    function apply(){
+      btnYes.classList.toggle('active', val);
+      btnNo.classList.toggle('active', !val);
+      onChange && onChange(val);
+    }
+    btnYes.addEventListener('click', ()=>{ val=true; apply(); });
+    btnNo.addEventListener('click', ()=>{ val=false; apply(); });
+    apply();
+    return { get: ()=>val, set: (v)=>{ val=v; apply(); } };
+  }
+
+  const tourToggle = makeToggle('btn-tour-si','btn-tour-no', false);
+  const ntToggle = makeToggle('btn-nt-si','btn-nt-no', false);
+  const dispToggle = makeToggle('btn-disp-si','btn-disp-no', false);
+  const vtaToggle = makeToggle('btn-vta-si','btn-vta-no', false, (val)=>{
+    document.getElementById('wrap-venta').style.display = val ? '' : 'none';
+  });
+
+  document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
+
+  function calcularCarteraAuto(){
+    const vol = Number(document.getElementById('f-volumen').value||0);
+    const cash = Number(document.getElementById('f-cash').value||0);
+    const carteraField = document.getElementById('f-cartera');
+    if(!carteraField.dataset.touched){
+      carteraField.value = Math.max(vol-cash,0) || '';
+    }
+  }
+  document.getElementById('f-volumen').addEventListener('input', calcularCarteraAuto);
+  document.getElementById('f-cash').addEventListener('input', calcularCarteraAuto);
+  document.getElementById('f-cartera').addEventListener('input', (e)=> e.target.dataset.touched='1');
+
+  document.getElementById('btn-limpiar').addEventListener('click', resetForm);
+  function resetForm(){
+    document.getElementById('form-cliente').reset();
+    document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
+    document.getElementById('f-cartera').dataset.touched='';
+    tourToggle.set(false);
+    ntToggle.set(false);
+    dispToggle.set(false);
+    vtaToggle.set(false);
+    populateTmkSelect();
+  }
+
+  document.getElementById('form-cliente').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const cliente = {
+      fecha: document.getElementById('f-fecha').value,
+      usuario: document.getElementById('f-usuario').value.trim(),
+      edad: document.getElementById('f-edad').value,
+      documento: document.getElementById('f-documento').value.trim(),
+      fechaNacimiento: document.getElementById('f-fecha-nacimiento').value,
+      direccion: document.getElementById('f-direccion').value.trim(),
+      telefono: document.getElementById('f-telefono').value.trim(),
+      enfermedades: document.getElementById('f-enfermedades').value.trim(),
+      medicamentos: document.getElementById('f-medicamentos').value.trim(),
+      alergias: document.getElementById('f-alergias').value.trim(),
+      estadoCivil: document.getElementById('f-estado-civil').value.trim(),
+      eps: document.getElementById('f-eps').value.trim(),
+      rh: document.getElementById('f-rh').value.trim(),
+      dispositivos: dispToggle.get(),
+      dispositivosCual: document.getElementById('f-disp-cual').value.trim(),
+      cirugias: document.getElementById('f-cirugias').value.trim(),
+      observacionUsuario: document.getElementById('f-observacion-usuario').value.trim(),
+      firmaAutorizacion: document.getElementById('f-firma').checked,
+      ocupacion: document.getElementById('f-ocupacion').value.trim(),
+      acompanante: document.getElementById('f-acompanante').value.trim(),
+      edadAcomp: document.getElementById('f-edad-acomp').value,
+      callCenter: document.getElementById('f-callcenter').value.trim(),
+      outsorsing: document.getElementById('f-outsorsing').value.trim(),
+      consultor: document.getElementById('f-consultor').value.trim(),
+      closer: document.getElementById('f-closer').value.trim(),
+      gerente: document.getElementById('f-gerente').value.trim(),
+      tour: tourToggle.get(),
+      nt: ntToggle.get(),
+      vta: vtaToggle.get(),
+      volumen: vtaToggle.get() ? Number(document.getElementById('f-volumen').value||0) : 0,
+      cash: vtaToggle.get() ? Number(document.getElementById('f-cash').value||0) : 0,
+      cartera: vtaToggle.get() ? Number(document.getElementById('f-cartera').value||0) : 0,
+      contrato: vtaToggle.get() ? document.getElementById('f-contrato').value.trim() : '',
+      observaciones: document.getElementById('f-observaciones').value.trim()
+    };
+    try{
+      const guardado = await apiSend('POST', '/clientes', cliente);
+      clientes.unshift(guardado);
+      showToast('Registro guardado: '+guardado.usuario);
+      resetForm();
+    }catch(e){ showToast('No se pudo guardar el registro'); }
+  });
+
+  // ---------- Clientes tabla ----------
+  function renderClientes(){
+    const term = document.getElementById('buscar-cliente').value.toLowerCase();
+    const filtered = clientes.filter(c=>
+      !term || c.usuario.toLowerCase().includes(term) || (c.consultor||'').toLowerCase().includes(term) || (c.closer||'').toLowerCase().includes(term)
+    );
+    document.getElementById('pill-count').textContent = filtered.length + (filtered.length===1?' cliente':' clientes');
+    const tbody = document.getElementById('tabla-clientes');
+    const empty = document.getElementById('clientes-empty');
+    if(filtered.length===0){
+      tbody.innerHTML='';
+      empty.style.display='';
+      return;
+    }
+    empty.style.display='none';
+    tbody.innerHTML = filtered.map(c=>{
+      let estado = '';
+      if(c.vta) estado += '<span class="badge si">VTA</span>';
+      if(c.tour) estado += '<span class="badge si">TOUR</span>';
+      if(c.nt) estado += '<span class="badge nt">NT</span>';
+      if(!estado) estado = '<span class="badge no">—</span>';
+      return `
+      <tr>
+        <td>${formatFecha(c.fecha)}</td>
+        <td class="name-cell">${escapeHtml(c.usuario)}${c.edad?` <span class="sub">(${escapeHtml(c.edad)})</span>`:''}</td>
+        <td>${escapeHtml(c.edad||'—')}</td>
+        <td>${escapeHtml(c.ocupacion||'—')}</td>
+        <td>${escapeHtml(c.acompanante||'—')}</td>
+        <td>${escapeHtml(c.callCenter||'—')}</td>
+        <td>${escapeHtml(c.outsorsing||'—')}</td>
+        <td>${escapeHtml(c.consultor||'—')}</td>
+        <td>${escapeHtml(c.closer||'—')}</td>
+        <td>${escapeHtml(c.gerente||'—')}</td>
+        <td class="num">${money(c.volumen)}</td>
+        <td class="num">${money(c.cash)}</td>
+        <td class="num">${money(c.cartera)}</td>
+        <td>${escapeHtml(c.contrato||'—')}</td>
+        <td>${estado}</td>
+        <td class="sub">${escapeHtml(c.observaciones||'')}</td>
+        <td><button type="button" class="btn btn-ghost" data-ficha="${c.id}" style="padding:6px 12px;font-size:12.5px">Ver ficha</button></td>
+      </tr>`;
+    }).join('');
+    tbody.querySelectorAll('[data-ficha]').forEach(btn=>{
+      btn.addEventListener('click', ()=> abrirFicha(btn.dataset.ficha));
+    });
+  }
+  document.getElementById('buscar-cliente').addEventListener('input', renderClientes);
+
+  // ---------- Ficha del usuario ----------
+  function fichaCampo(label, valor){
+    return `<div><dt>${label}</dt><dd>${escapeHtml(valor||'—')}</dd></div>`;
+  }
+  function abrirFicha(id){
+    const c = clientes.find(x=>String(x.id)===String(id));
+    if(!c) return;
+    document.getElementById('ficha-nombre').textContent = c.usuario;
+    document.getElementById('ficha-fecha').textContent = 'Registrado el '+formatFecha(c.fecha);
+    document.getElementById('ficha-body').innerHTML = [
+      fichaCampo('Edad', c.edad),
+      fichaCampo('Documento', c.documento),
+      fichaCampo('Fecha de nacimiento', c.fechaNacimiento ? formatFecha(c.fechaNacimiento) : ''),
+      fichaCampo('Teléfono', c.telefono),
+      `<div class="full">${fichaCampo('Dirección', c.direccion)}</div>`,
+      fichaCampo('Ocupación', c.ocupacion),
+      fichaCampo('Estado civil', c.estadoCivil),
+      fichaCampo('Eps', c.eps),
+      fichaCampo('RH', c.rh),
+      `<div class="full">${fichaCampo('Enfermedades', c.enfermedades)}</div>`,
+      `<div class="full">${fichaCampo('Medicamentos', c.medicamentos)}</div>`,
+      `<div class="full">${fichaCampo('Alergias', c.alergias)}</div>`,
+      fichaCampo('¿Dispositivos?', c.dispositivos ? 'Sí' : 'No'),
+      fichaCampo('¿Cuál dispositivo?', c.dispositivosCual),
+      `<div class="full">${fichaCampo('Cirugías', c.cirugias)}</div>`,
+      `<div class="full">${fichaCampo('Observación', c.observacionUsuario)}</div>`,
+      fichaCampo('Autorización de datos firmada', c.firmaAutorizacion ? 'Sí' : 'No'),
+      fichaCampo('Acompañante', c.acompanante),
+      fichaCampo('Edad acompañante', c.edadAcomp)
+    ].join('');
+    document.getElementById('modal-ficha').style.display='flex';
+  }
+  document.getElementById('ficha-cerrar').addEventListener('click', ()=>{
+    document.getElementById('modal-ficha').style.display='none';
+  });
+
+  // ---------- Exportar informe ----------
+  const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  const HEADERS = ['FECHA','USUARIO','EDAD','OCUPACION','ACOMPAÑANTE','EDAD.1','OCUPACION.1','CALL CENTER','OUTSORSING','CONSULTOR','CLOSER','GERENTE','VOLUMEN','CASH','CARTERA','No. CONTARTO','VTA','TOUR','NT','OBSERVACIONES'];
+
+  document.getElementById('btn-exportar').addEventListener('click', ()=>{
+    if(clientes.length===0){ showToast('No hay clientes para exportar'); return; }
+    if(typeof XLSX === 'undefined'){ showToast('No se pudo cargar el generador de Excel'); return; }
+
+    const porMes = {};
+    clientes.slice().sort((a,b)=> a.fecha.localeCompare(b.fecha)).forEach(c=>{
+      const d = new Date(c.fecha+'T00:00:00');
+      const mesNombre = isNaN(d) ? 'SIN FECHA' : MESES[d.getMonth()];
+      if(!porMes[mesNombre]) porMes[mesNombre] = [];
+      porMes[mesNombre].push([
+        isNaN(d) ? c.fecha : d,
+        c.usuario||'',
+        c.edad?Number(c.edad):'',
+        c.ocupacion||'',
+        c.acompanante||'',
+        c.edadAcomp?Number(c.edadAcomp):'',
+        c.ocupacionAcomp||'',
+        c.callCenter||'',
+        c.outsorsing||'',
+        c.consultor||'',
+        c.closer||'',
+        c.gerente||'',
+        c.vta?Number(c.volumen||0):'',
+        c.vta?Number(c.cash||0):'',
+        c.vta?Number(c.cartera||0):'',
+        c.contrato||'',
+        c.vta?1:'',
+        c.tour?1:'',
+        c.nt?1:'',
+        c.observaciones||''
+      ]);
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ordenMeses = MESES.filter(m=>porMes[m]).concat(porMes['SIN FECHA']?['SIN FECHA']:[]);
+    ordenMeses.forEach(mes=>{
+      const rows = [HEADERS, ...porMes[mes]];
+      const ws = XLSX.utils.aoa_to_sheet(rows, {cellDates:true});
+      ws['!cols'] = HEADERS.map(()=>({wch:14}));
+      XLSX.utils.book_append_sheet(wb, ws, mes.slice(0,31));
+    });
+
+    XLSX.writeFile(wb, 'manifiesto_duovital.xlsx');
+    showToast('Informe exportado');
+  });
+
+  // ---------- Init ----------
+  (async function init(){
+    await loadAll();
+    populateCallCenterSelect();
+    populateEquipoSelects();
+    renderClientes();
+  })();
+})();
+</script>
+</body>
+</html>
