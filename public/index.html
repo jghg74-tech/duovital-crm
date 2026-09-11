@@ -422,8 +422,42 @@
             <div id="cuotas-desglose" style="margin-top:10px"></div>
             <div class="grid three" style="margin-top:18px">
               <div class="field"><label>No. Contrato</label><input type="text" id="f-contrato" placeholder="Ej: 342 o RESERVA"></div>
-              <div class="field"><label>Método de pago</label><input type="text" id="f-metodo-pago" placeholder="Ej: Efectivo, Tarjeta, Transferencia"></div>
+              <div class="field">
+                <label>Método de pago</label>
+                <select id="f-metodo-pago">
+                  <option value="">Selecciona uno...</option>
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Tarjeta de crédito">Tarjeta de crédito</option>
+                  <option value="Tarjeta débito">Tarjeta débito</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Sistecrédito">Sistecrédito</option>
+                  <option value="Addi">Addi</option>
+                </select>
+              </div>
               <div class="field"><label>Elaborado por</label><input type="text" id="f-elaborado-por"></div>
+            </div>
+            <div class="grid three" style="margin-top:14px">
+              <div class="field" id="wrap-metodo-tarjeta" style="display:none">
+                <label>Franquicia</label>
+                <select id="f-metodo-tarjeta">
+                  <option value="">Selecciona una...</option>
+                  <option value="Mastercard">Mastercard</option>
+                  <option value="Visa">Visa</option>
+                  <option value="American Express">American Express</option>
+                  <option value="Diners">Diners</option>
+                </select>
+              </div>
+              <div class="field" id="wrap-metodo-transferencia" style="display:none">
+                <label>Entidad</label>
+                <select id="f-metodo-transferencia">
+                  <option value="">Selecciona una...</option>
+                  <option value="Nequi">Nequi</option>
+                  <option value="Daviplata">Daviplata</option>
+                  <option value="Davivienda">Davivienda</option>
+                  <option value="Bancolombia">Bancolombia</option>
+                  <option value="Bogotá">Bogotá</option>
+                </select>
+              </div>
             </div>
             <label class="chk-row" style="margin-top:12px">
               <input type="checkbox" id="f-firma-huella">
@@ -1105,6 +1139,14 @@
     renderCuotas();
   });
   document.getElementById('f-cuotas').addEventListener('input', renderCuotas);
+
+  document.getElementById('f-metodo-pago').addEventListener('change', (e)=>{
+    const v = e.target.value;
+    document.getElementById('wrap-metodo-tarjeta').style.display = (v==='Tarjeta de crédito') ? '' : 'none';
+    document.getElementById('wrap-metodo-transferencia').style.display = (v==='Transferencia') ? '' : 'none';
+    if(v!=='Tarjeta de crédito') document.getElementById('f-metodo-tarjeta').value='';
+    if(v!=='Transferencia') document.getElementById('f-metodo-transferencia').value='';
+  });
   document.getElementById('f-fecha-cuota').addEventListener('input', renderCuotas);
 
   let cuotasPagoFechas = {};
@@ -1204,6 +1246,8 @@
     document.getElementById('f-cartera').dataset.touched='';
     document.getElementById('cuotas-desglose').innerHTML = '';
     cuotasPagoFechas = {};
+    document.getElementById('wrap-metodo-tarjeta').style.display='none';
+    document.getElementById('wrap-metodo-transferencia').style.display='none';
     tourToggle.set(false);
     ntToggle.set(false);
     dispToggle.set(false);
@@ -1262,6 +1306,7 @@
       emergencia2Nombre: vtaToggle.get() ? document.getElementById('f-emerg2-nombre').value.trim() : '',
       emergencia2Celular: vtaToggle.get() ? document.getElementById('f-emerg2-celular').value.trim() : '',
       metodoPago: vtaToggle.get() ? document.getElementById('f-metodo-pago').value.trim() : '',
+      metodoPagoDetalle: vtaToggle.get() ? (document.getElementById('f-metodo-tarjeta').value.trim() || document.getElementById('f-metodo-transferencia').value.trim()) : '',
       elaboradoPor: vtaToggle.get() ? document.getElementById('f-elaborado-por').value.trim() : '',
       firmaHuella: vtaToggle.get() ? document.getElementById('f-firma-huella').checked : false,
       productos: vtaToggle.get() ? productosVenta.filter(p=>p.producto||p.lote||p.cantidad||p.valor) : []
@@ -1359,7 +1404,7 @@
       c.vta ? fichaCampo('Contacto emergencia 1', [c.emergencia1Nombre, c.emergencia1Celular].filter(Boolean).join(' · ')) : '',
       c.vta ? fichaCampo('Contacto emergencia 2', [c.emergencia2Nombre, c.emergencia2Celular].filter(Boolean).join(' · ')) : '',
       c.vta && c.productos && c.productos.length ? `<div class="full"><dt>Productos</dt><dd>${c.productos.map(p=>`${escapeHtml(p.producto||'—')} (lote ${escapeHtml(p.lote||'—')}) x${escapeHtml(p.cantidad||'—')} · ${money(p.valor)}`).join('<br>')}</dd></div>` : '',
-      c.vta ? fichaCampo('Método de pago', c.metodoPago) : '',
+      c.vta ? fichaCampo('Método de pago', [c.metodoPago, c.metodoPagoDetalle].filter(Boolean).join(' · ')) : '',
       c.vta && c.cuotas && c.cuotas.length ? `<div class="full"><dt>Cuotas de la cartera</dt><dd>${c.cuotas.map(q=>`Cuota ${q.numero}: ${money(q.monto)} · vence ${formatFecha(q.fecha)}${q.fechaPago?' · pagada '+formatFecha(q.fechaPago):' · pendiente'}`).join('<br>')}</dd></div>` : '',
       c.vta ? fichaCampo('Elaborado por', c.elaboradoPor) : '',
       c.vta ? fichaCampo('Firma y huella', c.firmaHuella ? 'Sí' : 'No') : ''

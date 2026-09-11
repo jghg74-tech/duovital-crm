@@ -112,6 +112,7 @@ async function initDb() {
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS emergencia2_nombre TEXT;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS emergencia2_celular TEXT;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS metodo_pago TEXT;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS metodo_pago_detalle TEXT;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS elaborado_por TEXT;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS firma_huella BOOLEAN DEFAULT false;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS productos JSONB DEFAULT '[]'::jsonb;
@@ -134,7 +135,7 @@ const clienteCols = `
   ciudad, codigo_venta AS "codigoVenta", numero_venta AS "numeroVenta",
   emergencia1_nombre AS "emergencia1Nombre", emergencia1_celular AS "emergencia1Celular",
   emergencia2_nombre AS "emergencia2Nombre", emergencia2_celular AS "emergencia2Celular",
-  metodo_pago AS "metodoPago", elaborado_por AS "elaboradoPor",
+  metodo_pago AS "metodoPago", metodo_pago_detalle AS "metodoPagoDetalle", elaborado_por AS "elaboradoPor",
   firma_huella AS "firmaHuella", productos,
   numero_cuotas AS "numeroCuotas", fecha_primera_cuota AS "fechaPrimeraCuota", cuotas,
   creado
@@ -161,10 +162,10 @@ app.post('/api/clientes', async (req, res) => {
         ciudad, codigo_venta, numero_venta,
         emergencia1_nombre, emergencia1_celular, emergencia2_nombre, emergencia2_celular,
         metodo_pago, elaborado_por, firma_huella, productos, closer2,
-        numero_cuotas, fecha_primera_cuota, cuotas
+        numero_cuotas, fecha_primera_cuota, cuotas, metodo_pago_detalle
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,
-        $35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49
+        $35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50
       ) RETURNING ${clienteCols}`,
       [
         c.fecha || null, c.usuario, c.edad || null, c.documento || null, c.fechaNacimiento || null,
@@ -190,7 +191,8 @@ app.post('/api/clientes', async (req, res) => {
         c.closer2 || null,
         c.vta ? (c.numeroCuotas || null) : null,
         c.vta ? (c.fechaPrimeraCuota || null) : null,
-        JSON.stringify(c.vta ? (Array.isArray(c.cuotas) ? c.cuotas : []) : [])
+        JSON.stringify(c.vta ? (Array.isArray(c.cuotas) ? c.cuotas : []) : []),
+        c.vta ? (c.metodoPagoDetalle || null) : null
       ]
     );
     res.json(rows[0]);
