@@ -115,6 +115,10 @@ async function initDb() {
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS elaborado_por TEXT;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS firma_huella BOOLEAN DEFAULT false;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS productos JSONB DEFAULT '[]'::jsonb;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS closer2 TEXT;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS numero_cuotas INTEGER;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS fecha_primera_cuota DATE;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cuotas JSONB DEFAULT '[]'::jsonb;
   `);
 }
 
@@ -125,13 +129,14 @@ const clienteCols = `
   dispositivos, dispositivos_cual AS "dispositivosCual", cirugias,
   observacion_usuario AS "observacionUsuario", firma_autorizacion AS "firmaAutorizacion",
   ocupacion, acompanante, edad_acomp AS "edadAcomp",
-  call_center AS "callCenter", outsorsing, consultor, closer, gerente,
+  call_center AS "callCenter", outsorsing, consultor, closer AS "closer1", closer2, gerente,
   tour, nt, vta, volumen, cash, cartera, contrato, observaciones,
   ciudad, codigo_venta AS "codigoVenta", numero_venta AS "numeroVenta",
   emergencia1_nombre AS "emergencia1Nombre", emergencia1_celular AS "emergencia1Celular",
   emergencia2_nombre AS "emergencia2Nombre", emergencia2_celular AS "emergencia2Celular",
   metodo_pago AS "metodoPago", elaborado_por AS "elaboradoPor",
   firma_huella AS "firmaHuella", productos,
+  numero_cuotas AS "numeroCuotas", fecha_primera_cuota AS "fechaPrimeraCuota", cuotas,
   creado
 `;
 
@@ -155,10 +160,11 @@ app.post('/api/clientes', async (req, res) => {
         tour, nt, vta, volumen, cash, cartera, contrato, observaciones,
         ciudad, codigo_venta, numero_venta,
         emergencia1_nombre, emergencia1_celular, emergencia2_nombre, emergencia2_celular,
-        metodo_pago, elaborado_por, firma_huella, productos
+        metodo_pago, elaborado_por, firma_huella, productos, closer2,
+        numero_cuotas, fecha_primera_cuota, cuotas
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,
-        $35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45
+        $35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49
       ) RETURNING ${clienteCols}`,
       [
         c.fecha || null, c.usuario, c.edad || null, c.documento || null, c.fechaNacimiento || null,
@@ -167,7 +173,7 @@ app.post('/api/clientes', async (req, res) => {
         !!c.dispositivos, c.dispositivosCual || null, c.cirugias || null,
         c.observacionUsuario || null, !!c.firmaAutorizacion,
         c.ocupacion || null, c.acompanante || null, c.edadAcomp || null,
-        c.callCenter || null, c.outsorsing || null, c.consultor || null, c.closer || null, c.gerente || null,
+        c.callCenter || null, c.outsorsing || null, c.consultor || null, c.closer1 || null, c.gerente || null,
         !!c.tour, !!c.nt, !!c.vta, c.volumen || 0, c.cash || 0, c.cartera || 0,
         c.contrato || null, c.observaciones || null,
         c.vta ? (c.ciudad || null) : null,
@@ -180,7 +186,11 @@ app.post('/api/clientes', async (req, res) => {
         c.vta ? (c.metodoPago || null) : null,
         c.vta ? (c.elaboradoPor || null) : null,
         c.vta ? !!c.firmaHuella : false,
-        JSON.stringify(c.vta ? (Array.isArray(c.productos) ? c.productos : []) : [])
+        JSON.stringify(c.vta ? (Array.isArray(c.productos) ? c.productos : []) : []),
+        c.closer2 || null,
+        c.vta ? (c.numeroCuotas || null) : null,
+        c.vta ? (c.fechaPrimeraCuota || null) : null,
+        JSON.stringify(c.vta ? (Array.isArray(c.cuotas) ? c.cuotas : []) : [])
       ]
     );
     res.json(rows[0]);

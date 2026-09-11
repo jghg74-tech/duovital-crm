@@ -160,6 +160,10 @@
   .prod-row button{background:none;border:none;color:var(--danger);cursor:pointer;font-size:13px;font-weight:600;padding:4px 6px;}
   .prod-head{display:grid;grid-template-columns:1fr 2fr 0.8fr 1fr auto;gap:8px;margin-bottom:6px;}
   .prod-head span{font-size:11px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;}
+  .cuota-item{display:flex;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--border-soft);font-size:13px;}
+  .cuota-item:last-child{border-bottom:none;}
+  .cuotas-box{background:var(--border-soft);border-radius:8px;padding:4px 10px;}
+  .cuotas-empty{font-size:12px;color:var(--ink-faint);}
 </style>
 </head>
 <body>
@@ -282,9 +286,15 @@
               <select id="f-consultor"><option value="">Selecciona uno...</option></select>
             </div>
             <div class="field">
-              <label>Closer</label>
-              <select id="f-closer"><option value="">Selecciona uno...</option></select>
+              <label>Closer 1</label>
+              <select id="f-closer1"><option value="">Selecciona uno...</option></select>
             </div>
+            <div class="field">
+              <label>Closer 2</label>
+              <select id="f-closer2"><option value="">Selecciona uno...</option></select>
+            </div>
+          </div>
+          <div class="grid three" style="margin-top:18px">
             <div class="field">
               <label>Gerente</label>
               <select id="f-gerente"><option value="">Selecciona uno...</option></select>
@@ -338,10 +348,15 @@
             <button type="button" class="btn btn-ghost" id="btn-agregar-producto" style="margin-top:8px;padding:7px 14px;font-size:13px">+ Agregar producto</button>
 
             <div class="grid three" style="margin-top:18px">
-              <div class="field"><label>Volumen / Total (COP)</label><input type="number" id="f-volumen" min="0" placeholder="0"></div>
-              <div class="field"><label>Abono / Cash (COP)</label><input type="number" id="f-cash" min="0" placeholder="0"></div>
-              <div class="field"><label>Saldo / Cartera (COP)</label><input type="number" id="f-cartera" min="0" placeholder="0"></div>
+              <div class="field"><label>Volumen / Total (COP)</label><input type="text" inputmode="numeric" class="money-input" id="f-volumen" placeholder="$ 0"></div>
+              <div class="field"><label>Abono / Cash (COP)</label><input type="text" inputmode="numeric" class="money-input" id="f-cash" placeholder="$ 0"></div>
+              <div class="field"><label>Saldo / Cartera (COP)</label><input type="text" inputmode="numeric" class="money-input" id="f-cartera" placeholder="$ 0"></div>
             </div>
+            <div class="grid three" style="margin-top:18px">
+              <div class="field"><label>No. de cuotas</label><input type="number" id="f-cuotas" min="1" placeholder="Ej: 3"></div>
+              <div class="field"><label>Fecha primera cuota</label><input type="date" id="f-fecha-cuota"></div>
+            </div>
+            <div id="cuotas-desglose" style="margin-top:10px"></div>
             <div class="grid three" style="margin-top:18px">
               <div class="field"><label>No. Contrato</label><input type="text" id="f-contrato" placeholder="Ej: 342 o RESERVA"></div>
               <div class="field"><label>Método de pago</label><input type="text" id="f-metodo-pago" placeholder="Ej: Efectivo, Tarjeta, Transferencia"></div>
@@ -392,7 +407,8 @@
                 <th>Call Center</th>
                 <th>Outsorsing</th>
                 <th>Consultor</th>
-                <th>Closer</th>
+                <th>Closer 1</th>
+                <th>Closer 2</th>
                 <th>Gerente</th>
                 <th class="num">Volumen</th>
                 <th class="num">Cash</th>
@@ -743,7 +759,7 @@
   });
 
   function populateEquipoSelects(){
-    [['consultor','f-consultor'],['closer','f-closer'],['gerente','f-gerente']].forEach(([tipo, selId])=>{
+    [['consultor','f-consultor'],['closer','f-closer1'],['closer','f-closer2'],['gerente','f-gerente']].forEach(([tipo, selId])=>{
       const select = document.getElementById(selId);
       const current = select.value;
       select.innerHTML = '<option value="">Selecciona uno...</option>' +
@@ -962,13 +978,19 @@
         <input type="text" value="${escapeHtml(p.lote||'')}" data-prod-field="lote" data-prod-idx="${idx}">
         <input type="text" value="${escapeHtml(p.producto||'')}" data-prod-field="producto" data-prod-idx="${idx}">
         <input type="number" min="0" value="${p.cantidad||''}" data-prod-field="cantidad" data-prod-idx="${idx}">
-        <input type="number" min="0" value="${p.valor||''}" data-prod-field="valor" data-prod-idx="${idx}">
+        <input type="text" inputmode="numeric" class="money-input" value="${p.valor?formatMoney(p.valor):''}" data-prod-field="valor" data-prod-idx="${idx}">
         <button type="button" data-quitar-prod="${idx}">✕</button>
       </div>`).join('');
     cont.querySelectorAll('[data-prod-field]').forEach(inp=>{
       inp.addEventListener('input', ()=>{
         const idx = Number(inp.dataset.prodIdx);
-        productosVenta[idx][inp.dataset.prodField] = inp.value;
+        if(inp.classList.contains('money-input')){
+          const raw = parseMoney(inp.value);
+          inp.value = raw ? formatMoney(raw) : '';
+          productosVenta[idx][inp.dataset.prodField] = raw;
+        } else {
+          productosVenta[idx][inp.dataset.prodField] = inp.value;
+        }
       });
     });
     cont.querySelectorAll('[data-quitar-prod]').forEach(btn=>{
@@ -986,23 +1008,79 @@
 
   document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
 
+  function formatMoney(n){
+    n = Math.round(Number(n)||0);
+    return '$ ' + n.toLocaleString('es-CO');
+  }
+  function parseMoney(str){
+    return Number(String(str||'').replace(/[^\d]/g,'')) || 0;
+  }
+  function attachMoneyFormat(input, onChange){
+    input.addEventListener('input', ()=>{
+      const raw = parseMoney(input.value);
+      input.value = raw ? formatMoney(raw) : '';
+      if(onChange) onChange(raw);
+    });
+  }
+
   function calcularCarteraAuto(){
-    const vol = Number(document.getElementById('f-volumen').value||0);
-    const cash = Number(document.getElementById('f-cash').value||0);
+    const vol = parseMoney(document.getElementById('f-volumen').value);
+    const cash = parseMoney(document.getElementById('f-cash').value);
     const carteraField = document.getElementById('f-cartera');
     if(!carteraField.dataset.touched){
-      carteraField.value = Math.max(vol-cash,0) || '';
+      const saldo = Math.max(vol-cash,0);
+      carteraField.value = saldo ? formatMoney(saldo) : '';
     }
+    renderCuotas();
   }
-  document.getElementById('f-volumen').addEventListener('input', calcularCarteraAuto);
-  document.getElementById('f-cash').addEventListener('input', calcularCarteraAuto);
-  document.getElementById('f-cartera').addEventListener('input', (e)=> e.target.dataset.touched='1');
+  attachMoneyFormat(document.getElementById('f-volumen'), calcularCarteraAuto);
+  attachMoneyFormat(document.getElementById('f-cash'), calcularCarteraAuto);
+  document.getElementById('f-cartera').addEventListener('input', (e)=>{
+    e.target.dataset.touched='1';
+    const raw = parseMoney(e.target.value);
+    e.target.value = raw ? formatMoney(raw) : '';
+    renderCuotas();
+  });
+  document.getElementById('f-cuotas').addEventListener('input', renderCuotas);
+  document.getElementById('f-fecha-cuota').addEventListener('input', renderCuotas);
+
+  function calcularCuotas(){
+    const cartera = parseMoney(document.getElementById('f-cartera').value);
+    const numCuotas = Number(document.getElementById('f-cuotas').value || 0);
+    const fechaIni = document.getElementById('f-fecha-cuota').value;
+    if(!cartera || !numCuotas || numCuotas<1 || !fechaIni) return [];
+    const base = Math.floor(cartera / numCuotas);
+    const resto = cartera - base*numCuotas;
+    const [y,m,d] = fechaIni.split('-').map(Number);
+    const items = [];
+    for(let i=0;i<numCuotas;i++){
+      const fecha = new Date(y, (m-1)+i, d);
+      const monto = base + (i===numCuotas-1 ? resto : 0);
+      items.push({
+        numero: i+1,
+        monto,
+        fecha: fecha.getFullYear()+'-'+String(fecha.getMonth()+1).padStart(2,'0')+'-'+String(fecha.getDate()).padStart(2,'0')
+      });
+    }
+    return items;
+  }
+
+  function renderCuotas(){
+    const cont = document.getElementById('cuotas-desglose');
+    const items = calcularCuotas();
+    if(items.length===0){ cont.innerHTML=''; return; }
+    cont.innerHTML = '<div class="cuotas-box">' + items.map(it=>{
+      const [y,m,d] = it.fecha.split('-');
+      return `<div class="cuota-item"><span>Cuota ${it.numero}</span><span>${formatMoney(it.monto)} · ${d}/${m}/${y}</span></div>`;
+    }).join('') + '</div>';
+  }
 
   document.getElementById('btn-limpiar').addEventListener('click', resetForm);
   function resetForm(){
     document.getElementById('form-cliente').reset();
     document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
     document.getElementById('f-cartera').dataset.touched='';
+    document.getElementById('cuotas-desglose').innerHTML = '';
     tourToggle.set(false);
     ntToggle.set(false);
     dispToggle.set(false);
@@ -1039,14 +1117,18 @@
       callCenter: document.getElementById('f-callcenter').value.trim(),
       outsorsing: document.getElementById('f-outsorsing').value.trim(),
       consultor: document.getElementById('f-consultor').value.trim(),
-      closer: document.getElementById('f-closer').value.trim(),
+      closer1: document.getElementById('f-closer1').value.trim(),
+      closer2: document.getElementById('f-closer2').value.trim(),
       gerente: document.getElementById('f-gerente').value.trim(),
       tour: tourToggle.get(),
       nt: ntToggle.get(),
       vta: vtaToggle.get(),
-      volumen: vtaToggle.get() ? Number(document.getElementById('f-volumen').value||0) : 0,
-      cash: vtaToggle.get() ? Number(document.getElementById('f-cash').value||0) : 0,
-      cartera: vtaToggle.get() ? Number(document.getElementById('f-cartera').value||0) : 0,
+      volumen: vtaToggle.get() ? parseMoney(document.getElementById('f-volumen').value) : 0,
+      cash: vtaToggle.get() ? parseMoney(document.getElementById('f-cash').value) : 0,
+      cartera: vtaToggle.get() ? parseMoney(document.getElementById('f-cartera').value) : 0,
+      numeroCuotas: vtaToggle.get() ? Number(document.getElementById('f-cuotas').value||0) : 0,
+      fechaPrimeraCuota: vtaToggle.get() ? document.getElementById('f-fecha-cuota').value : '',
+      cuotas: vtaToggle.get() ? calcularCuotas() : [],
       contrato: vtaToggle.get() ? document.getElementById('f-contrato').value.trim() : '',
       observaciones: document.getElementById('f-observaciones').value.trim(),
       ciudad: vtaToggle.get() ? document.getElementById('f-ciudad').value.trim() : '',
@@ -1073,7 +1155,7 @@
   function renderClientes(){
     const term = document.getElementById('buscar-cliente').value.toLowerCase();
     const filtered = clientes.filter(c=>
-      !term || c.usuario.toLowerCase().includes(term) || (c.consultor||'').toLowerCase().includes(term) || (c.closer||'').toLowerCase().includes(term)
+      !term || c.usuario.toLowerCase().includes(term) || (c.consultor||'').toLowerCase().includes(term) || (c.closer1||'').toLowerCase().includes(term) || (c.closer2||'').toLowerCase().includes(term)
     );
     document.getElementById('pill-count').textContent = filtered.length + (filtered.length===1?' cliente':' clientes');
     const tbody = document.getElementById('tabla-clientes');
@@ -1100,7 +1182,8 @@
         <td>${escapeHtml(c.callCenter||'—')}</td>
         <td>${escapeHtml(c.outsorsing||'—')}</td>
         <td>${escapeHtml(c.consultor||'—')}</td>
-        <td>${escapeHtml(c.closer||'—')}</td>
+        <td>${escapeHtml(c.closer1||'—')}</td>
+        <td>${escapeHtml(c.closer2||'—')}</td>
         <td>${escapeHtml(c.gerente||'—')}</td>
         <td class="num">${money(c.volumen)}</td>
         <td class="num">${money(c.cash)}</td>
@@ -1154,6 +1237,7 @@
       c.vta ? fichaCampo('Contacto emergencia 2', [c.emergencia2Nombre, c.emergencia2Celular].filter(Boolean).join(' · ')) : '',
       c.vta && c.productos && c.productos.length ? `<div class="full"><dt>Productos</dt><dd>${c.productos.map(p=>`${escapeHtml(p.producto||'—')} (lote ${escapeHtml(p.lote||'—')}) x${escapeHtml(p.cantidad||'—')} · ${money(p.valor)}`).join('<br>')}</dd></div>` : '',
       c.vta ? fichaCampo('Método de pago', c.metodoPago) : '',
+      c.vta && c.cuotas && c.cuotas.length ? `<div class="full"><dt>Cuotas de la cartera</dt><dd>${c.cuotas.map(q=>`Cuota ${q.numero}: ${money(q.monto)} · ${formatFecha(q.fecha)}`).join('<br>')}</dd></div>` : '',
       c.vta ? fichaCampo('Elaborado por', c.elaboradoPor) : '',
       c.vta ? fichaCampo('Firma y huella', c.firmaHuella ? 'Sí' : 'No') : ''
     ].join('');
@@ -1165,7 +1249,7 @@
 
   // ---------- Exportar informe ----------
   const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-  const HEADERS = ['FECHA','USUARIO','EDAD','OCUPACION','ACOMPAÑANTE','EDAD.1','OCUPACION.1','CALL CENTER','OUTSORSING','CONSULTOR','CLOSER','GERENTE','VOLUMEN','CASH','CARTERA','No. CONTARTO','VTA','TOUR','NT','OBSERVACIONES'];
+  const HEADERS = ['FECHA','USUARIO','EDAD','OCUPACION','ACOMPAÑANTE','EDAD.1','OCUPACION.1','CALL CENTER','OUTSORSING','CONSULTOR','CLOSER','CLOSER 2','GERENTE','VOLUMEN','CASH','CARTERA','No. CONTARTO','VTA','TOUR','NT','OBSERVACIONES'];
 
   document.getElementById('btn-exportar').addEventListener('click', ()=>{
     if(clientes.length===0){ showToast('No hay clientes para exportar'); return; }
@@ -1187,7 +1271,8 @@
         c.callCenter||'',
         c.outsorsing||'',
         c.consultor||'',
-        c.closer||'',
+        c.closer1||'',
+        c.closer2||'',
         c.gerente||'',
         c.vta?Number(c.volumen||0):'',
         c.vta?Number(c.cash||0):'',
