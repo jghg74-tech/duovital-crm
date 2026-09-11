@@ -155,6 +155,11 @@
   .equipo-item:last-child{border-bottom:none;}
   .equipo-item button{background:none;border:none;color:var(--danger);cursor:pointer;font-size:12.5px;font-weight:600;}
   .equipo-empty{font-size:12.5px;color:var(--ink-faint);padding:6px 0;}
+  .prod-row{display:grid;grid-template-columns:1fr 2fr 0.8fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px;}
+  .prod-row input{padding:7px 9px;font-size:13px;}
+  .prod-row button{background:none;border:none;color:var(--danger);cursor:pointer;font-size:13px;font-weight:600;padding:4px 6px;}
+  .prod-head{display:grid;grid-template-columns:1fr 2fr 0.8fr 1fr auto;gap:8px;margin-bottom:6px;}
+  .prod-head span{font-size:11px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;}
 </style>
 </head>
 <body>
@@ -313,13 +318,39 @@
           <div id="wrap-venta" style="display:none">
             <div class="section-label">Detalle de la venta</div>
             <div class="grid three">
-              <div class="field"><label>Volumen (COP)</label><input type="number" id="f-volumen" min="0" placeholder="0"></div>
-              <div class="field"><label>Cash (COP)</label><input type="number" id="f-cash" min="0" placeholder="0"></div>
-              <div class="field"><label>Cartera (COP)</label><input type="number" id="f-cartera" min="0" placeholder="0"></div>
+              <div class="field"><label>Ciudad</label><input type="text" id="f-ciudad"></div>
+              <div class="field"><label>Código</label><input type="text" id="f-codigo-venta"></div>
+              <div class="field"><label>No.</label><input type="text" id="f-numero-venta" placeholder="Ej: 0565"></div>
             </div>
-            <div class="grid" style="margin-top:18px">
+
+            <div class="section-label tight">Contacto de emergencia</div>
+            <div class="grid tight">
+              <div class="field"><label>Nombre</label><input type="text" id="f-emerg1-nombre"></div>
+              <div class="field"><label>Celular</label><input type="text" id="f-emerg1-celular"></div>
+            </div>
+            <div class="grid tight">
+              <div class="field"><label>Nombre</label><input type="text" id="f-emerg2-nombre"></div>
+              <div class="field"><label>Celular</label><input type="text" id="f-emerg2-celular"></div>
+            </div>
+
+            <div class="section-label tight">Productos</div>
+            <div id="tabla-productos-venta"></div>
+            <button type="button" class="btn btn-ghost" id="btn-agregar-producto" style="margin-top:8px;padding:7px 14px;font-size:13px">+ Agregar producto</button>
+
+            <div class="grid three" style="margin-top:18px">
+              <div class="field"><label>Volumen / Total (COP)</label><input type="number" id="f-volumen" min="0" placeholder="0"></div>
+              <div class="field"><label>Abono / Cash (COP)</label><input type="number" id="f-cash" min="0" placeholder="0"></div>
+              <div class="field"><label>Saldo / Cartera (COP)</label><input type="number" id="f-cartera" min="0" placeholder="0"></div>
+            </div>
+            <div class="grid three" style="margin-top:18px">
               <div class="field"><label>No. Contrato</label><input type="text" id="f-contrato" placeholder="Ej: 342 o RESERVA"></div>
+              <div class="field"><label>Método de pago</label><input type="text" id="f-metodo-pago" placeholder="Ej: Efectivo, Tarjeta, Transferencia"></div>
+              <div class="field"><label>Elaborado por</label><input type="text" id="f-elaborado-por"></div>
             </div>
+            <label class="chk-row" style="margin-top:12px">
+              <input type="checkbox" id="f-firma-huella">
+              Firma y huella registradas (físico)
+            </label>
           </div>
 
           <div class="section-label">Observaciones</div>
@@ -917,6 +948,42 @@
     document.getElementById('wrap-venta').style.display = val ? '' : 'none';
   });
 
+  // ---------- Productos de la venta (filas dinámicas) ----------
+  let productosVenta = [];
+  function renderProductosVenta(){
+    const cont = document.getElementById('tabla-productos-venta');
+    if(productosVenta.length===0){
+      cont.innerHTML = '<div class="equipo-empty">Sin productos agregados</div>';
+      return;
+    }
+    cont.innerHTML = '<div class="prod-head"><span>Lote</span><span>Producto</span><span>Cantidad</span><span>Valor</span><span></span></div>' +
+      productosVenta.map((p,idx)=>`
+      <div class="prod-row">
+        <input type="text" value="${escapeHtml(p.lote||'')}" data-prod-field="lote" data-prod-idx="${idx}">
+        <input type="text" value="${escapeHtml(p.producto||'')}" data-prod-field="producto" data-prod-idx="${idx}">
+        <input type="number" min="0" value="${p.cantidad||''}" data-prod-field="cantidad" data-prod-idx="${idx}">
+        <input type="number" min="0" value="${p.valor||''}" data-prod-field="valor" data-prod-idx="${idx}">
+        <button type="button" data-quitar-prod="${idx}">✕</button>
+      </div>`).join('');
+    cont.querySelectorAll('[data-prod-field]').forEach(inp=>{
+      inp.addEventListener('input', ()=>{
+        const idx = Number(inp.dataset.prodIdx);
+        productosVenta[idx][inp.dataset.prodField] = inp.value;
+      });
+    });
+    cont.querySelectorAll('[data-quitar-prod]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        productosVenta.splice(Number(btn.dataset.quitarProd),1);
+        renderProductosVenta();
+      });
+    });
+  }
+  document.getElementById('btn-agregar-producto').addEventListener('click', ()=>{
+    productosVenta.push({ lote:'', producto:'', cantidad:'', valor:'' });
+    renderProductosVenta();
+  });
+  renderProductosVenta();
+
   document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
 
   function calcularCarteraAuto(){
@@ -940,6 +1007,8 @@
     ntToggle.set(false);
     dispToggle.set(false);
     vtaToggle.set(false);
+    productosVenta = [];
+    renderProductosVenta();
     populateTmkSelect();
   }
 
@@ -979,7 +1048,18 @@
       cash: vtaToggle.get() ? Number(document.getElementById('f-cash').value||0) : 0,
       cartera: vtaToggle.get() ? Number(document.getElementById('f-cartera').value||0) : 0,
       contrato: vtaToggle.get() ? document.getElementById('f-contrato').value.trim() : '',
-      observaciones: document.getElementById('f-observaciones').value.trim()
+      observaciones: document.getElementById('f-observaciones').value.trim(),
+      ciudad: vtaToggle.get() ? document.getElementById('f-ciudad').value.trim() : '',
+      codigoVenta: vtaToggle.get() ? document.getElementById('f-codigo-venta').value.trim() : '',
+      numeroVenta: vtaToggle.get() ? document.getElementById('f-numero-venta').value.trim() : '',
+      emergencia1Nombre: vtaToggle.get() ? document.getElementById('f-emerg1-nombre').value.trim() : '',
+      emergencia1Celular: vtaToggle.get() ? document.getElementById('f-emerg1-celular').value.trim() : '',
+      emergencia2Nombre: vtaToggle.get() ? document.getElementById('f-emerg2-nombre').value.trim() : '',
+      emergencia2Celular: vtaToggle.get() ? document.getElementById('f-emerg2-celular').value.trim() : '',
+      metodoPago: vtaToggle.get() ? document.getElementById('f-metodo-pago').value.trim() : '',
+      elaboradoPor: vtaToggle.get() ? document.getElementById('f-elaborado-por').value.trim() : '',
+      firmaHuella: vtaToggle.get() ? document.getElementById('f-firma-huella').checked : false,
+      productos: vtaToggle.get() ? productosVenta.filter(p=>p.producto||p.lote||p.cantidad||p.valor) : []
     };
     try{
       const guardado = await apiSend('POST', '/clientes', cliente);
@@ -1065,7 +1145,17 @@
       `<div class="full">${fichaCampo('Observación', c.observacionUsuario)}</div>`,
       fichaCampo('Autorización de datos firmada', c.firmaAutorizacion ? 'Sí' : 'No'),
       fichaCampo('Acompañante', c.acompanante),
-      fichaCampo('Edad acompañante', c.edadAcomp)
+      fichaCampo('Edad acompañante', c.edadAcomp),
+      c.vta ? `<div class="full" style="border-top:1px solid var(--border-soft);margin-top:8px;padding-top:8px;font-weight:700;font-size:12px;color:var(--primary-dark)">DATOS DE LA VENTA</div>` : '',
+      c.vta ? fichaCampo('Ciudad', c.ciudad) : '',
+      c.vta ? fichaCampo('Código', c.codigoVenta) : '',
+      c.vta ? fichaCampo('No.', c.numeroVenta) : '',
+      c.vta ? fichaCampo('Contacto emergencia 1', [c.emergencia1Nombre, c.emergencia1Celular].filter(Boolean).join(' · ')) : '',
+      c.vta ? fichaCampo('Contacto emergencia 2', [c.emergencia2Nombre, c.emergencia2Celular].filter(Boolean).join(' · ')) : '',
+      c.vta && c.productos && c.productos.length ? `<div class="full"><dt>Productos</dt><dd>${c.productos.map(p=>`${escapeHtml(p.producto||'—')} (lote ${escapeHtml(p.lote||'—')}) x${escapeHtml(p.cantidad||'—')} · ${money(p.valor)}`).join('<br>')}</dd></div>` : '',
+      c.vta ? fichaCampo('Método de pago', c.metodoPago) : '',
+      c.vta ? fichaCampo('Elaborado por', c.elaboradoPor) : '',
+      c.vta ? fichaCampo('Firma y huella', c.firmaHuella ? 'Sí' : 'No') : ''
     ].join('');
     document.getElementById('modal-ficha').style.display='flex';
   }

@@ -104,6 +104,17 @@ async function initDb() {
       observaciones TEXT,
       creado TIMESTAMPTZ DEFAULT now()
     );
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS ciudad TEXT;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS codigo_venta TEXT;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS numero_venta TEXT;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS emergencia1_nombre TEXT;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS emergencia1_celular TEXT;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS emergencia2_nombre TEXT;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS emergencia2_celular TEXT;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS metodo_pago TEXT;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS elaborado_por TEXT;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS firma_huella BOOLEAN DEFAULT false;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS productos JSONB DEFAULT '[]'::jsonb;
   `);
 }
 
@@ -115,7 +126,13 @@ const clienteCols = `
   observacion_usuario AS "observacionUsuario", firma_autorizacion AS "firmaAutorizacion",
   ocupacion, acompanante, edad_acomp AS "edadAcomp",
   call_center AS "callCenter", outsorsing, consultor, closer, gerente,
-  tour, nt, vta, volumen, cash, cartera, contrato, observaciones, creado
+  tour, nt, vta, volumen, cash, cartera, contrato, observaciones,
+  ciudad, codigo_venta AS "codigoVenta", numero_venta AS "numeroVenta",
+  emergencia1_nombre AS "emergencia1Nombre", emergencia1_celular AS "emergencia1Celular",
+  emergencia2_nombre AS "emergencia2Nombre", emergencia2_celular AS "emergencia2Celular",
+  metodo_pago AS "metodoPago", elaborado_por AS "elaboradoPor",
+  firma_huella AS "firmaHuella", productos,
+  creado
 `;
 
 // ---------- Clientes ----------
@@ -135,9 +152,13 @@ app.post('/api/clientes', async (req, res) => {
         enfermedades, medicamentos, alergias, estado_civil, eps, rh,
         dispositivos, dispositivos_cual, cirugias, observacion_usuario, firma_autorizacion,
         ocupacion, acompanante, edad_acomp, call_center, outsorsing, consultor, closer, gerente,
-        tour, nt, vta, volumen, cash, cartera, contrato, observaciones
+        tour, nt, vta, volumen, cash, cartera, contrato, observaciones,
+        ciudad, codigo_venta, numero_venta,
+        emergencia1_nombre, emergencia1_celular, emergencia2_nombre, emergencia2_celular,
+        metodo_pago, elaborado_por, firma_huella, productos
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,
+        $35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45
       ) RETURNING ${clienteCols}`,
       [
         c.fecha || null, c.usuario, c.edad || null, c.documento || null, c.fechaNacimiento || null,
@@ -148,7 +169,18 @@ app.post('/api/clientes', async (req, res) => {
         c.ocupacion || null, c.acompanante || null, c.edadAcomp || null,
         c.callCenter || null, c.outsorsing || null, c.consultor || null, c.closer || null, c.gerente || null,
         !!c.tour, !!c.nt, !!c.vta, c.volumen || 0, c.cash || 0, c.cartera || 0,
-        c.contrato || null, c.observaciones || null
+        c.contrato || null, c.observaciones || null,
+        c.vta ? (c.ciudad || null) : null,
+        c.vta ? (c.codigoVenta || null) : null,
+        c.vta ? (c.numeroVenta || null) : null,
+        c.vta ? (c.emergencia1Nombre || null) : null,
+        c.vta ? (c.emergencia1Celular || null) : null,
+        c.vta ? (c.emergencia2Nombre || null) : null,
+        c.vta ? (c.emergencia2Celular || null) : null,
+        c.vta ? (c.metodoPago || null) : null,
+        c.vta ? (c.elaboradoPor || null) : null,
+        c.vta ? !!c.firmaHuella : false,
+        JSON.stringify(c.vta ? (Array.isArray(c.productos) ? c.productos : []) : [])
       ]
     );
     res.json(rows[0]);
