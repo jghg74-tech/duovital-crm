@@ -164,6 +164,19 @@
   .cuota-item:last-child{border-bottom:none;}
   .cuotas-box{background:var(--border-soft);border-radius:8px;padding:4px 10px;}
   .cuotas-empty{font-size:12px;color:var(--ink-faint);}
+  .fin-banner{background:var(--primary-dark);color:#fff;text-align:center;font-weight:700;font-size:13px;padding:8px;border-radius:8px 8px 0 0;}
+  .fin-subbanner{background:var(--primary);color:#fff;text-align:center;font-weight:600;font-size:11.5px;padding:6px;margin-top:2px;}
+  .fin-summary{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--border);border-top:none;}
+  @media (min-width:760px){ .fin-summary{grid-template-columns:repeat(8,1fr);} }
+  .fin-summary div{padding:8px 6px;text-align:center;border-right:1px solid var(--border);border-bottom:1px solid var(--border);}
+  .fin-summary div:last-child{border-right:none;}
+  .fin-summary span{display:block;font-size:10px;color:var(--ink-soft);font-weight:600;margin-bottom:3px;}
+  .fin-summary b{font-size:12.5px;color:var(--ink);}
+  .fin-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:2px;}
+  .fin-table thead th{background:var(--primary-dark);color:#fff;font-size:11px;padding:7px 8px;text-align:left;}
+  .fin-table thead th.num,.fin-table td.num{text-align:right;}
+  .fin-table td{padding:6px 8px;border-bottom:1px solid var(--border-soft);border-left:1px solid var(--border-soft);}
+  .fin-table tr:nth-child(even) td{background:var(--border-soft);}
 </style>
 </head>
 <body>
@@ -1044,6 +1057,7 @@
   document.getElementById('f-cuotas').addEventListener('input', renderCuotas);
   document.getElementById('f-fecha-cuota').addEventListener('input', renderCuotas);
 
+  let cuotasPagoFechas = {};
   function calcularCuotas(){
     const cartera = parseMoney(document.getElementById('f-cartera').value);
     const numCuotas = Number(document.getElementById('f-cuotas').value || 0);
@@ -1053,26 +1067,84 @@
     const resto = cartera - base*numCuotas;
     const [y,m,d] = fechaIni.split('-').map(Number);
     const items = [];
+    let saldo = cartera;
     for(let i=0;i<numCuotas;i++){
       const fecha = new Date(y, (m-1)+i, d);
       const monto = base + (i===numCuotas-1 ? resto : 0);
+      const numero = i+1;
       items.push({
-        numero: i+1,
+        numero,
         monto,
-        fecha: fecha.getFullYear()+'-'+String(fecha.getMonth()+1).padStart(2,'0')+'-'+String(fecha.getDate()).padStart(2,'0')
+        capital: monto,
+        saldo,
+        fecha: fecha.getFullYear()+'-'+String(fecha.getMonth()+1).padStart(2,'0')+'-'+String(fecha.getDate()).padStart(2,'0'),
+        fechaPago: cuotasPagoFechas[numero] || ''
       });
+      saldo -= monto;
     }
     return items;
+  }
+
+  const DIAS_SEM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const MESES_ABR = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  function formatFechaLarga(iso){
+    const [y,m,d] = iso.split('-').map(Number);
+    const dt = new Date(y,m-1,d);
+    return `${DIAS_SEM[dt.getDay()]}, ${String(d).padStart(2,'0')} de ${MESES_ABR[m-1]} del ${y}`;
+  }
+  function formatFechaCorta(iso){
+    const [y,m,d] = iso.split('-');
+    return `${d}/${m}/${y}`;
   }
 
   function renderCuotas(){
     const cont = document.getElementById('cuotas-desglose');
     const items = calcularCuotas();
     if(items.length===0){ cont.innerHTML=''; return; }
-    cont.innerHTML = '<div class="cuotas-box">' + items.map(it=>{
-      const [y,m,d] = it.fecha.split('-');
-      return `<div class="cuota-item"><span>Cuota ${it.numero}</span><span>${formatMoney(it.monto)} · ${d}/${m}/${y}</span></div>`;
-    }).join('') + '</div>';
+    const cartera = parseMoney(document.getElementById('f-cartera').value);
+    const vlrCuota = items[0].monto;
+    const proxima = items.find(it=>!it.fechaPago) || items[items.length-1];
+    const saldoPendiente = items.filter(it=>!it.fechaPago).reduce((s,it)=>s+it.monto,0);
+    const estado = items.every(it=>it.fechaPago) ? 'Cartera Pagada' : 'Cartera Activa';
+    const numeroVenta = document.getElementById('f-numero-venta').value.trim();
+
+    cont.innerHTML = `
+      <div class="fin-banner">Financiación</div>
+      <div class="fin-subbanner">Cartera${numeroVenta ? ' No.'+escapeHtml(numeroVenta) : ''}</div>
+      <div class="fin-summary">
+        <div><span>Vlr_total</span><b>${formatMoney(cartera)}</b></div>
+        <div><span>Num_cuotas</span><b>${items.length}</b></div>
+        <div><span>Vlr_cuota</span><b>${formatMoney(vlrCuota)}</b></div>
+        <div><span>Fecha_inicial</span><b>${formatFechaCorta(items[0].fecha)}</b></div>
+        <div><span>Próxima Cuota</span><b>${proxima.numero}</b></div>
+        <div><span>Próxima Fecha</span><b>${formatFechaCorta(proxima.fecha)}</b></div>
+        <div><span>Saldo</span><b>${formatMoney(saldoPendiente)}</b></div>
+        <div><span>Estado</span><b>${estado}</b></div>
+      </div>
+      <div class="fin-subbanner">Programación de Pagos</div>
+      <table class="fin-table">
+        <thead><tr><th>Fecha</th><th>No. Cuota</th><th>Saldo</th><th>Vlr Capital</th><th>Vlr Cuota</th><th>Fecha de pago</th></tr></thead>
+        <tbody>
+        ${items.map(it=>`
+          <tr>
+            <td>${formatFechaLarga(it.fecha)}</td>
+            <td class="num">${it.numero}</td>
+            <td class="num">${formatMoney(it.saldo)}</td>
+            <td class="num">${formatMoney(it.capital)}</td>
+            <td class="num">${formatMoney(it.monto)}</td>
+            <td><input type="date" data-pago-cuota="${it.numero}" value="${it.fechaPago||''}" style="padding:5px 7px;font-size:12.5px"></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+    cont.querySelectorAll('[data-pago-cuota]').forEach(inp=>{
+      inp.addEventListener('change', ()=>{
+        const num = Number(inp.dataset.pagoCuota);
+        if(inp.value) cuotasPagoFechas[num] = inp.value;
+        else delete cuotasPagoFechas[num];
+        renderCuotas();
+      });
+    });
   }
 
   document.getElementById('btn-limpiar').addEventListener('click', resetForm);
@@ -1081,6 +1153,7 @@
     document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
     document.getElementById('f-cartera').dataset.touched='';
     document.getElementById('cuotas-desglose').innerHTML = '';
+    cuotasPagoFechas = {};
     tourToggle.set(false);
     ntToggle.set(false);
     dispToggle.set(false);
@@ -1237,7 +1310,7 @@
       c.vta ? fichaCampo('Contacto emergencia 2', [c.emergencia2Nombre, c.emergencia2Celular].filter(Boolean).join(' · ')) : '',
       c.vta && c.productos && c.productos.length ? `<div class="full"><dt>Productos</dt><dd>${c.productos.map(p=>`${escapeHtml(p.producto||'—')} (lote ${escapeHtml(p.lote||'—')}) x${escapeHtml(p.cantidad||'—')} · ${money(p.valor)}`).join('<br>')}</dd></div>` : '',
       c.vta ? fichaCampo('Método de pago', c.metodoPago) : '',
-      c.vta && c.cuotas && c.cuotas.length ? `<div class="full"><dt>Cuotas de la cartera</dt><dd>${c.cuotas.map(q=>`Cuota ${q.numero}: ${money(q.monto)} · ${formatFecha(q.fecha)}`).join('<br>')}</dd></div>` : '',
+      c.vta && c.cuotas && c.cuotas.length ? `<div class="full"><dt>Cuotas de la cartera</dt><dd>${c.cuotas.map(q=>`Cuota ${q.numero}: ${money(q.monto)} · vence ${formatFecha(q.fecha)}${q.fechaPago?' · pagada '+formatFecha(q.fechaPago):' · pendiente'}`).join('<br>')}</dd></div>` : '',
       c.vta ? fichaCampo('Elaborado por', c.elaboradoPor) : '',
       c.vta ? fichaCampo('Firma y huella', c.firmaHuella ? 'Sí' : 'No') : ''
     ].join('');
