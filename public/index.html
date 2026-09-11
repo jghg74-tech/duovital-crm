@@ -21,6 +21,8 @@
     --accent-soft:#FFE9E3;
     --gold:#B8924A;
     --gold-soft:#F1E4C6;
+    --beige:#F3ECDD;
+    --beige-soft:#FAF6EC;
     --border:#DCE9E5;
     --border-soft:#EAF2F0;
     --danger:#C1521A;
@@ -29,28 +31,23 @@
   body{
     margin:0;font-family:'Inter',sans-serif;color:var(--ink);
     background-color:var(--bg);
-    background-image:
-      radial-gradient(circle at 100% 0%, rgba(184,146,74,0.07) 0%, transparent 45%),
-      radial-gradient(circle at 0% 100%, rgba(15,107,99,0.06) 0%, transparent 40%),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%230F6B63' stroke-opacity='0.05' stroke-width='2'%3E%3Crect x='14' y='14' width='24' height='10'/%3E%3Crect x='14' y='24' width='10' height='24'/%3E%3Crect x='46' y='14' width='10' height='24'/%3E%3Crect x='56' y='14' width='24' height='10'/%3E%3Crect x='70' y='24' width='10' height='24'/%3E%3Crect x='82' y='14' width='24' height='10'/%3E%3C/g%3E%3C/svg%3E");
-    background-attachment:fixed;
   }
   h1,h2,h3,.brand{font-family:'Fraunces',serif;}
   ::selection{background:var(--primary-soft);}
 
   .app{display:flex;min-height:100vh;}
 
-  .sidebar{width:236px;flex-shrink:0;background:linear-gradient(180deg,var(--primary-dark) 0%,#083E39 100%);color:#EAF4F2;display:flex;flex-direction:column;padding:28px 18px;box-shadow:2px 0 18px rgba(0,0,0,0.12);}
-  .brand-block{padding:0 8px 22px 8px;border-bottom:1px solid rgba(234,244,242,0.15);margin-bottom:22px;text-align:center;}
-  .brand-logo{width:76px;height:76px;border-radius:50%;background:#fff;padding:5px;box-shadow:0 4px 14px rgba(0,0,0,0.25),0 0 0 2px var(--gold);object-fit:cover;margin-bottom:10px;}
-  .brand{font-size:19px;font-weight:600;letter-spacing:0.2px;color:#fff;line-height:1.1;}
-  .brand-sub{font-size:12px;color:#9FC6C0;margin-top:3px;}
+  .sidebar{width:236px;flex-shrink:0;background:linear-gradient(180deg,#EFE6D2 0%,#E6D9BC 100%);color:var(--ink);display:flex;flex-direction:column;padding:28px 18px;box-shadow:2px 0 18px rgba(0,0,0,0.08);}
+  .brand-block{padding:0 8px 22px 8px;border-bottom:1px solid rgba(21,55,50,0.12);margin-bottom:22px;text-align:center;}
+  .brand-logo{width:76px;height:76px;border-radius:50%;background:#fff;padding:5px;box-shadow:0 4px 14px rgba(0,0,0,0.18),0 0 0 2px var(--gold);object-fit:cover;margin-bottom:10px;}
+  .brand{font-size:19px;font-weight:600;letter-spacing:0.2px;color:var(--primary-dark);line-height:1.1;}
+  .brand-sub{font-size:12px;color:var(--ink-soft);margin-top:3px;}
   nav{display:flex;flex-direction:column;gap:3px;}
-  .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;color:#CFE6E2;font-size:14.5px;font-weight:500;cursor:pointer;border:none;background:none;text-align:left;width:100%;transition:background .12s;}
-  .nav-item:hover{background:rgba(234,244,242,0.08);}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;color:var(--ink);font-size:14.5px;font-weight:500;cursor:pointer;border:none;background:none;text-align:left;width:100%;transition:background .12s;}
+  .nav-item:hover{background:rgba(21,55,50,0.07);}
   .nav-item.active{background:var(--primary);color:#fff;box-shadow:inset 3px 0 0 var(--gold);}
   .nav-item svg{width:17px;height:17px;flex-shrink:0;}
-  .sidebar-foot{margin-top:auto;padding:12px 8px 0 8px;font-size:11.5px;color:#6E9691;border-top:1px solid rgba(234,244,242,0.15);}
+  .sidebar-foot{margin-top:auto;padding:12px 8px 0 8px;font-size:11.5px;color:var(--ink-soft);border-top:1px solid rgba(21,55,50,0.12);}
 
   main{flex:1;padding:34px 40px 60px;max-width:1220px;}
   .page-head{margin-bottom:26px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;}
@@ -86,6 +83,7 @@
   .btn-primary{background:var(--primary);color:#fff;}
   .btn-primary:hover{background:var(--primary-dark);}
   .btn-ghost{background:none;border:1px solid var(--border);color:var(--ink);}
+  .sidebar-foot .btn-ghost{border-color:rgba(21,55,50,0.25);}
   .btn-ghost:hover{background:var(--border-soft);}
   .btn-accent{background:var(--accent);color:#fff;}
   .btn-accent:hover{background:#E85B3F;}
@@ -113,6 +111,28 @@
   .num{text-align:right;font-variant-numeric:tabular-nums;}
   .modal-bg{position:fixed;inset:0;background:rgba(21,55,50,0.35);display:flex;align-items:center;justify-content:center;z-index:90;padding:20px;}
   .modal{background:#fff;border-radius:14px;padding:28px;width:560px;max-width:100%;max-height:85vh;overflow:auto;}
+
+  .login-screen{
+    position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;
+    background-color:#E6D9BC;
+  }
+  .login-card{
+    width:400px;max-width:100%;text-align:center;color:var(--ink);
+    background:linear-gradient(180deg,#FBF8F1 0%,#F3ECDD 100%);
+    border:1px solid rgba(15,107,99,0.25);
+    border-radius:16px;padding:38px 34px 30px;
+    box-shadow:0 0 0 2px rgba(10,74,68,0.55), 0 0 140px rgba(6,48,43,0.65), 0 0 260px rgba(6,48,43,0.4), 0 24px 60px rgba(21,55,50,0.25);
+  }
+  .login-logo{width:78px;height:78px;border-radius:50%;object-fit:cover;margin-bottom:14px;box-shadow:0 4px 14px rgba(0,0,0,0.18),0 0 0 2px var(--gold);}
+  .login-eyebrow{font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;}
+  .login-title{font-family:'Fraunces',serif;font-size:27px;font-weight:600;color:var(--primary-dark);margin:0 0 16px;}
+  .login-divider{width:56px;height:2px;background:var(--primary);opacity:0.55;margin:0 auto 26px;}
+  .login-card .field label{color:var(--ink-soft);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;font-weight:600;}
+  .login-card input{background:#fff;border:1px solid var(--border);color:var(--ink);}
+  .login-card input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft);}
+  .btn-gold{background:linear-gradient(90deg,var(--primary-dark) 0%,var(--primary) 50%,var(--primary-dark) 100%);color:#fff;font-weight:700;border:none;}
+  .btn-gold:hover{filter:brightness(1.08);}
+  .login-foot{margin-top:20px;font-size:11px;color:var(--ink-faint);}
   .modal h3{margin:0 0 4px;}
   .modal .modal-sub{color:var(--ink-soft);font-size:13px;margin:0 0 18px;}
   .ficha-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;font-size:13.5px;}
@@ -471,13 +491,14 @@
   </main>
 </div>
 
-<div class="modal-bg" id="pantalla-login">
-  <div class="modal" style="width:380px;text-align:center">
-    <img src="/logo.jpg" alt="Duo Vital Salud" style="width:88px;height:88px;border-radius:50%;object-fit:cover;box-shadow:0 4px 14px rgba(0,0,0,0.18),0 0 0 2px var(--gold);margin-bottom:16px">
-    <h3 style="margin-bottom:4px">Duo Vital · CRM</h3>
-    <p class="modal-sub">Inicia sesión para continuar</p>
+<div class="login-screen" id="pantalla-login">
+  <div class="login-card">
+    <img src="/logo.jpg" alt="Duo Vital Salud" class="login-logo">
+    <div class="login-eyebrow">Sistema de atención y ventas</div>
+    <div class="login-title">Duo Vital</div>
+    <div class="login-divider"></div>
     <form id="form-login" style="text-align:left">
-      <div class="field" style="margin-bottom:12px">
+      <div class="field" style="margin-bottom:14px">
         <label>Usuario</label>
         <input type="text" id="login-usuario" required autocomplete="username">
       </div>
@@ -486,10 +507,11 @@
         <input type="password" id="login-password" required autocomplete="current-password">
       </div>
       <p id="login-error" style="color:var(--danger);font-size:13px;margin:10px 0 0;display:none"></p>
-      <div class="form-actions" style="margin-top:18px">
-        <button type="submit" class="btn btn-primary" style="width:100%">Entrar</button>
+      <div class="form-actions" style="margin-top:22px">
+        <button type="submit" class="btn btn-gold" style="width:100%">Entrar →</button>
       </div>
     </form>
+    <div class="login-foot">Duo Vital · CRM © 2026</div>
   </div>
 </div>
 
@@ -581,7 +603,7 @@
       el.style.display = (currentUser && roles.includes(currentUser.rol)) ? '' : 'none';
     });
     document.getElementById('sidebar-user').innerHTML = currentUser
-      ? `<div style="font-weight:600;color:#fff">${escapeHtml(currentUser.nombre)}</div><div style="color:#9FC6C0">${ROL_LABELS[currentUser.rol]||currentUser.rol}</div>`
+      ? `<div style="font-weight:600;color:var(--primary-dark)">${escapeHtml(currentUser.nombre)}</div><div style="color:var(--ink-soft)">${ROL_LABELS[currentUser.rol]||currentUser.rol}</div>`
       : '';
   }
 
