@@ -96,6 +96,17 @@ async function initDb() {
       comentario TEXT NOT NULL,
       creado TIMESTAMPTZ DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS recibos (
+      id SERIAL PRIMARY KEY,
+      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      numero_recibo TEXT,
+      concepto TEXT,
+      valor NUMERIC DEFAULT 0,
+      fecha DATE,
+      usuario_nombre TEXT NOT NULL,
+      usuario_login TEXT,
+      creado TIMESTAMPTZ DEFAULT now()
+    );
     CREATE TABLE IF NOT EXISTS clientes (
       id SERIAL PRIMARY KEY,
       fecha DATE,
@@ -413,6 +424,41 @@ app.post('/api/clientes/:id/comentarios', async (req, res) => {
     );
     res.json(rows[0]);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al guardar el comentario' }); }
+});
+
+// ---------- Recibos de caja ----------
+app.get('/api/clientes/:id/recibos', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, numero_recibo AS "numeroRecibo", concepto, valor, fecha,
+              usuario_nombre AS "usuarioNombre", usuario_login AS "usuarioLogin", creado
+       FROM recibos WHERE cliente_id = $1 ORDER BY fecha DESC, creado DESC`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al leer recibos' }); }
+});
+
+app.post('/api/clientes/:id/recibos', async (req, res) => {
+  try {
+    const { numeroRecibo, concepto, valor, fecha } = req.body;
+    if (!fecha || !valor) return res.status(400).json({ error: 'Faltan datos del recibo' });
+    const u = req.session.user;
+    const { rows } = await pool.query(
+      `INSERT INTO recibos (cliente_id, numero_recibo, concepto, valor, fecha, usuario_nombre, usuario_login)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING id, numero_recibo AS "numeroRecibo", concepto, valor, fecha, usuario_nombre AS "usuarioNombre", usuario_login AS "usuarioLogin", creado`,
+      [req.params.id, numeroRecibo || null, concepto || null, valor || 0, fecha, u.nombre, u.usuario]
+    );
+    res.json(rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al guardar el recibo' }); }
+});
+
+app.delete('/api/recibos/:id', requirePerm('borrarRecibos'), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM recibos WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar el recibo' }); }
 });
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));

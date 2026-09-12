@@ -643,6 +643,7 @@
             </div>
             <div class="grid three" style="margin-top:6px">
               <label class="chk-row"><input type="checkbox" class="u-permiso" value="usuarios"> Usuarios</label>
+              <label class="chk-row"><input type="checkbox" class="u-permiso" value="borrarRecibos"> Borrar recibos</label>
             </div>
           </div>
           <div class="form-actions">
@@ -703,6 +704,7 @@
       <button type="button" class="ficha-tab" data-ficha-tab="salud">Salud</button>
       <button type="button" class="ficha-tab" data-ficha-tab="comercial">Comercial</button>
       <button type="button" class="ficha-tab" data-ficha-tab="cartera">Cartera</button>
+      <button type="button" class="ficha-tab" data-ficha-tab="recibos">Recibos</button>
       <button type="button" class="ficha-tab" data-ficha-tab="comentarios">Comentarios</button>
     </div>
     <div id="ficha-panel-cliente">
@@ -716,6 +718,28 @@
     </div>
     <div id="ficha-panel-cartera" style="display:none">
       <div id="ficha-body-cartera"></div>
+    </div>
+    <div id="ficha-panel-recibos" style="display:none">
+      <div class="grid three" style="margin-bottom:8px">
+        <div class="field"><label>Fecha</label><input type="date" id="recibo-fecha"></div>
+        <div class="field">
+          <label>Concepto</label>
+          <select id="recibo-concepto">
+            <option value="Cuota inicial">Cuota inicial</option>
+            <option value="Cuota financiación">Cuota financiación</option>
+            <option value="Abono">Abono</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+        <div class="field"><label>No. Recibo</label><input type="text" id="recibo-numero"></div>
+      </div>
+      <div class="grid" style="margin-bottom:8px">
+        <div class="field"><label>Valor</label><input type="text" inputmode="numeric" class="money-input" id="recibo-valor" placeholder="$ 0"></div>
+      </div>
+      <div class="modal-close-row" style="justify-content:flex-end;margin-top:0;margin-bottom:12px">
+        <button type="button" class="btn btn-primary" id="btn-agregar-recibo" style="padding:7px 14px;font-size:12.5px">Agregar recibo</button>
+      </div>
+      <div id="lista-recibos"></div>
     </div>
     <div id="ficha-panel-comentarios" style="display:none">
       <div class="field" style="margin-bottom:8px">
@@ -938,7 +962,7 @@
     });
   }
 
-  const PERM_LABELS = { borrarClientes:'Borrar clientes', callcenters:'Call Centers', equipo:'Equipo', usuarios:'Usuarios' };
+  const PERM_LABELS = { borrarClientes:'Borrar clientes', callcenters:'Call Centers', equipo:'Equipo', usuarios:'Usuarios', borrarRecibos:'Borrar recibos' };
   // ---------- Usuarios ----------
   async function renderUsuarios(){
     try{ usuarios = await apiGet('/usuarios'); }catch(e){ usuarios = []; return; }
@@ -1609,10 +1633,13 @@
 
     document.querySelectorAll('.ficha-tab').forEach(t=>t.classList.remove('active'));
     document.querySelector('.ficha-tab[data-ficha-tab="cliente"]').classList.add('active');
-    ['cliente','salud','comercial','cartera','comentarios'].forEach(k=>{
+    ['cliente','salud','comercial','cartera','recibos','comentarios'].forEach(k=>{
       document.getElementById('ficha-panel-'+k).style.display = (k==='cliente') ? '' : 'none';
     });
     document.getElementById('comentario-nuevo').value='';
+    document.getElementById('recibo-fecha').value = new Date().toISOString().slice(0,10);
+    document.getElementById('recibo-numero').value='';
+    document.getElementById('recibo-valor').value='';
     document.getElementById('modal-ficha').style.display='flex';
   }
   document.querySelectorAll('.ficha-tab').forEach(tab=>{
@@ -1620,10 +1647,11 @@
       document.querySelectorAll('.ficha-tab').forEach(t=>t.classList.remove('active'));
       tab.classList.add('active');
       const which = tab.dataset.fichaTab;
-      ['cliente','salud','comercial','cartera','comentarios'].forEach(k=>{
+      ['cliente','salud','comercial','cartera','recibos','comentarios'].forEach(k=>{
         document.getElementById('ficha-panel-'+k).style.display = (k===which) ? '' : 'none';
       });
       if(which==='comentarios') cargarComentarios();
+      if(which==='recibos') cargarRecibos();
     });
   });
 
@@ -1659,6 +1687,63 @@
       document.getElementById('comentario-nuevo').value='';
       cargarComentarios();
     }catch(e){ showToast(e.message||'No se pudo guardar el comentario'); }
+  });
+
+  // ---------- Recibos de caja ----------
+  attachMoneyFormat(document.getElementById('recibo-valor'));
+  async function cargarRecibos(){
+    const cont = document.getElementById('lista-recibos');
+    cont.innerHTML = '<div class="comentarios-empty">Cargando...</div>';
+    try{
+      const recibos = await apiGet('/clientes/'+fichaClienteId+'/recibos');
+      if(recibos.length===0){
+        cont.innerHTML = '<div class="comentarios-empty">Sin recibos registrados todavía.</div>';
+        return;
+      }
+      const puedeBorrar = hasPerm('borrarRecibos');
+      cont.innerHTML = `<table class="fin-table"><thead><tr>
+          <th>Fecha</th><th>Concepto</th><th>No. Recibo</th><th class="num">Valor</th><th>Usuario</th><th></th>
+        </tr></thead><tbody>
+        ${recibos.map(r=>`
+          <tr>
+            <td>${formatFecha(r.fecha)}</td>
+            <td>${escapeHtml(r.concepto||'—')}</td>
+            <td>${escapeHtml(r.numeroRecibo||'—')}</td>
+            <td class="num">${money(r.valor)}</td>
+            <td>${escapeHtml(r.usuarioNombre)}</td>
+            <td>${puedeBorrar ? `<button type="button" class="btn btn-ghost" data-eliminar-recibo="${r.id}" style="padding:3px 8px;font-size:11px;color:var(--danger)">Eliminar</button>` : ''}</td>
+          </tr>`).join('')}
+        </tbody></table>`;
+      cont.querySelectorAll('[data-eliminar-recibo]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          if(!confirm('¿Eliminar este recibo? Esta acción no se puede deshacer.')) return;
+          try{
+            await apiSend('DELETE', '/recibos/'+btn.dataset.eliminarRecibo);
+            cargarRecibos();
+            showToast('Recibo eliminado');
+          }catch(e){ showToast(e.message||'No se pudo eliminar'); }
+        });
+      });
+    }catch(e){
+      cont.innerHTML = '<div class="comentarios-empty">No se pudieron cargar los recibos.</div>';
+    }
+  }
+  document.getElementById('btn-agregar-recibo').addEventListener('click', async ()=>{
+    const fecha = document.getElementById('recibo-fecha').value;
+    const valor = parseMoney(document.getElementById('recibo-valor').value);
+    if(!fecha || !valor){ showToast('Completa la fecha y el valor'); return; }
+    try{
+      await apiSend('POST', '/clientes/'+fichaClienteId+'/recibos', {
+        fecha,
+        valor,
+        concepto: document.getElementById('recibo-concepto').value,
+        numeroRecibo: document.getElementById('recibo-numero').value.trim()
+      });
+      document.getElementById('recibo-numero').value='';
+      document.getElementById('recibo-valor').value='';
+      cargarRecibos();
+      showToast('Recibo agregado');
+    }catch(e){ showToast(e.message||'No se pudo guardar el recibo'); }
   });
 
   document.getElementById('ficha-cerrar').addEventListener('click', ()=>{
