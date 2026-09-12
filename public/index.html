@@ -348,7 +348,7 @@
 
           <div class="section-label">Proceso comercial</div>
           <div class="grid three">
-            <div class="field"><label>Fecha</label><input type="date" id="f-fecha" required></div>
+            <div class="field"><label>Fecha</label><input type="text" inputmode="numeric" class="date-input" id="f-fecha" placeholder="DD/MM/AAAA" maxlength="10" required></div>
             <div class="field">
               <label>Call Center</label>
               <select id="f-callcenter">
@@ -1203,7 +1203,28 @@
   });
   renderProductosVenta();
 
-  document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
+  document.getElementById('f-fecha').value = isoToDdmmaaaa(new Date().toISOString().slice(0,10));
+
+  function formatDateInput(str){
+    const digits = String(str||'').replace(/\D/g,'').slice(0,8);
+    let out = digits.slice(0,2);
+    if(digits.length>2) out += '/'+digits.slice(2,4);
+    if(digits.length>4) out += '/'+digits.slice(4,8);
+    return out;
+  }
+  function ddmmaaaaToIso(str){
+    const m = String(str||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if(!m) return '';
+    return `${m[3]}-${m[2]}-${m[1]}`;
+  }
+  function isoToDdmmaaaa(iso){
+    if(!iso) return '';
+    const [y,m,d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  document.getElementById('f-fecha').addEventListener('input', (e)=>{
+    e.target.value = formatDateInput(e.target.value);
+  });
 
   function formatMoney(n){
     n = Math.round(Number(n)||0);
@@ -1342,7 +1363,7 @@
   document.getElementById('btn-limpiar').addEventListener('click', resetForm);
   function resetForm(){
     document.getElementById('form-cliente').reset();
-    document.getElementById('f-fecha').value = new Date().toISOString().slice(0,10);
+    document.getElementById('f-fecha').value = isoToDdmmaaaa(new Date().toISOString().slice(0,10));
     document.getElementById('f-cartera').dataset.touched='';
     document.getElementById('cuotas-desglose').innerHTML = '';
     cuotasPagoFechas = {};
@@ -1359,8 +1380,13 @@
 
   document.getElementById('form-cliente').addEventListener('submit', async (e)=>{
     e.preventDefault();
+    const fechaIso = ddmmaaaaToIso(document.getElementById('f-fecha').value);
+    if(!fechaIso){
+      showToast('La fecha debe tener el formato DD/MM/AAAA');
+      return;
+    }
     const cliente = {
-      fecha: document.getElementById('f-fecha').value,
+      fecha: fechaIso,
       usuario: document.getElementById('f-usuario').value.trim(),
       edad: document.getElementById('f-edad').value,
       documento: document.getElementById('f-documento').value.trim(),
