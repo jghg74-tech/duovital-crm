@@ -29,10 +29,29 @@ function requireAuth(req, res, next) {
   next();
 }
 function requireAdmin(req, res, next) {
-  if (!req.session.user || req.session.user.rol !== 'administrador') {
+  if (!req.session.user || !['administrador', 'superadministrador'].includes(req.session.user.rol)) {
     return res.status(403).json({ error: 'No autorizado' });
   }
   next();
+}
+function requireSuperAdmin(req, res, next) {
+  if (!req.session.user || req.session.user.rol !== 'superadministrador') {
+    return res.status(403).json({ error: 'Solo el Super Administrador puede hacer esto' });
+  }
+  next();
+}
+function hasPerm(user, key) {
+  if (!user) return false;
+  if (user.rol === 'superadministrador') return true;
+  return !!(user.permisos && user.permisos[key]);
+}
+function requirePerm(key) {
+  return (req, res, next) => {
+    if (!hasPerm(req.session.user, key)) {
+      return res.status(403).json({ error: 'No tienes permiso para esta acción. Pídele al Super Administrador que te lo otorgue.' });
+    }
+    next();
+  };
 }
 app.use('/api', (req, res, next) => {
   if (req.path === '/login' || req.path === '/health') return next();
@@ -66,6 +85,9 @@ async function initDb() {
       rol TEXT NOT NULL CHECK (rol IN ('administrador','consultor','closer','gerente')),
       creado TIMESTAMPTZ DEFAULT now()
     );
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permisos JSONB DEFAULT '{}'::jsonb;
+    ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
+    ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check CHECK (rol IN ('administrador','consultor','closer','gerente','superadministrador'));
     CREATE TABLE IF NOT EXISTS clientes (
       id SERIAL PRIMARY KEY,
       fecha DATE,
@@ -213,7 +235,7 @@ app.get('/api/callcenters', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al leer call centers' }); }
 });
 
-app.post('/api/callcenters', requireAdmin, async (req, res) => {
+app.post('/api/callcenters', requirePerm('callcenters'), async (req, res) => {
   try {
     const { rows } = await pool.query(
       'INSERT INTO call_centers (nombre) VALUES ($1) ON CONFLICT (nombre) DO NOTHING RETURNING id, nombre',
@@ -224,14 +246,14 @@ app.post('/api/callcenters', requireAdmin, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al crear call center' }); }
 });
 
-app.delete('/api/callcenters/:id', requireAdmin, async (req, res) => {
+app.delete('/api/callcenters/:id', requirePerm('callcenters'), async (req, res) => {
   try {
     await pool.query('DELETE FROM call_centers WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar call center' }); }
 });
 
-app.post('/api/callcenters/:id/tmks', requireAdmin, async (req, res) => {
+app.post('/api/callcenters/:id/tmks', requirePerm('callcenters'), async (req, res) => {
   try {
     const { rows } = await pool.query(
       'INSERT INTO tmks (call_center_id, codigo) VALUES ($1, $2) RETURNING id, codigo',
@@ -241,7 +263,7 @@ app.post('/api/callcenters/:id/tmks', requireAdmin, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al agregar TMK' }); }
 });
 
-app.delete('/api/tmks/:id', requireAdmin, async (req, res) => {
+app.delete('/api/tmks/:id', requirePerm('callcenters'), async (req, res) => {
   try {
     await pool.query('DELETE FROM tmks WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
@@ -258,7 +280,7 @@ app.get('/api/equipo', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al leer equipo' }); }
 });
 
-app.post('/api/equipo', requireAdmin, async (req, res) => {
+app.post('/api/equipo', requirePerm('equipo'), async (req, res) => {
   try {
     const { tipo, nombre } = req.body;
     if (!['consultor', 'closer', 'gerente'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido' });
@@ -270,7 +292,7 @@ app.post('/api/equipo', requireAdmin, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al agregar' }); }
 });
 
-app.delete('/api/equipo/:id', requireAdmin, async (req, res) => {
+app.delete('/api/equipo/:id', requirePerm('equipo'), async (req, res) => {
   try {
     await pool.query('DELETE FROM equipo WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
@@ -286,7 +308,7 @@ app.post('/api/login', async (req, res) => {
     if (!u) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
     const ok = await bcrypt.compare(password || '', u.password_hash);
     if (!ok) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-    req.session.user = { id: u.id, nombre: u.nombre, usuario: u.usuario, rol: u.rol };
+    req.session.user = { id: u.id, nombre: u.nombre, usuario: u.usuario, rol: u.rol, permisos: u.permisos || {} };
     res.json(req.session.user);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al iniciar sesión' }); }
 });
@@ -301,22 +323,26 @@ app.get('/api/me', (req, res) => {
 });
 
 // ---------- Usuarios (solo administrador) ----------
-app.get('/api/usuarios', requireAdmin, async (req, res) => {
+app.get('/api/usuarios', requirePerm('usuarios'), async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, nombre, usuario, rol FROM usuarios ORDER BY nombre');
+    const { rows } = await pool.query('SELECT id, nombre, usuario, rol, permisos FROM usuarios ORDER BY nombre');
     res.json(rows);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al leer usuarios' }); }
 });
 
-app.post('/api/usuarios', requireAdmin, async (req, res) => {
+app.post('/api/usuarios', requirePerm('usuarios'), async (req, res) => {
   try {
-    const { nombre, usuario, password, rol } = req.body;
+    const { nombre, usuario, password, rol, permisos } = req.body;
     if (!nombre || !usuario || !password || !rol) return res.status(400).json({ error: 'Faltan datos' });
-    if (!['administrador', 'consultor', 'closer', 'gerente'].includes(rol)) return res.status(400).json({ error: 'Rol inválido' });
+    if (!['administrador', 'consultor', 'closer', 'gerente', 'superadministrador'].includes(rol)) return res.status(400).json({ error: 'Rol inválido' });
+    if (rol === 'superadministrador' && req.session.user.rol !== 'superadministrador') {
+      return res.status(403).json({ error: 'Solo un Super Administrador puede crear otro Super Administrador' });
+    }
     const hash = await bcrypt.hash(password, 10);
+    const permisosSeguros = (req.session.user.rol === 'superadministrador' && permisos && typeof permisos === 'object') ? permisos : {};
     const { rows } = await pool.query(
-      'INSERT INTO usuarios (nombre, usuario, password_hash, rol) VALUES ($1,$2,$3,$4) RETURNING id, nombre, usuario, rol',
-      [nombre, usuario, hash, rol]
+      'INSERT INTO usuarios (nombre, usuario, password_hash, rol, permisos) VALUES ($1,$2,$3,$4,$5) RETURNING id, nombre, usuario, rol, permisos',
+      [nombre, usuario, hash, rol, JSON.stringify(permisosSeguros)]
     );
     res.json(rows[0]);
   } catch (e) {
@@ -325,7 +351,19 @@ app.post('/api/usuarios', requireAdmin, async (req, res) => {
   }
 });
 
-app.delete('/api/usuarios/:id', requireAdmin, async (req, res) => {
+app.patch('/api/usuarios/:id/permisos', requireSuperAdmin, async (req, res) => {
+  try {
+    const { permisos } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE usuarios SET permisos = $1 WHERE id = $2 RETURNING id, nombre, usuario, rol, permisos',
+      [JSON.stringify(permisos && typeof permisos === 'object' ? permisos : {}), req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Usuario no encontrado' });
+    res.json(rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al actualizar permisos' }); }
+});
+
+app.delete('/api/usuarios/:id', requirePerm('usuarios'), async (req, res) => {
   try {
     if (String(req.session.user.id) === String(req.params.id)) {
       return res.status(400).json({ error: 'No puedes eliminar tu propio usuario' });
@@ -333,6 +371,13 @@ app.delete('/api/usuarios/:id', requireAdmin, async (req, res) => {
     await pool.query('DELETE FROM usuarios WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar usuario' }); }
+});
+
+app.delete('/api/clientes/:id', requirePerm('borrarClientes'), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM clientes WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar el registro' }); }
 });
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
@@ -343,9 +388,17 @@ async function seedAdmin() {
     const hash = await bcrypt.hash('duovital2026', 10);
     await pool.query(
       'INSERT INTO usuarios (nombre, usuario, password_hash, rol) VALUES ($1,$2,$3,$4)',
-      ['Administrador', 'admin', hash, 'administrador']
+      ['Super Administrador', 'admin', hash, 'superadministrador']
     );
-    console.log('Usuario admin creado por defecto (admin / duovital2026) - cámbialo cuanto antes.');
+    console.log('Usuario Super Administrador creado por defecto (admin / duovital2026) - cámbialo cuanto antes.');
+  } else {
+    const { rows: supers } = await pool.query("SELECT COUNT(*)::int AS n FROM usuarios WHERE rol = 'superadministrador'");
+    if (supers[0].n === 0) {
+      const { rows: adminRow } = await pool.query("SELECT id FROM usuarios WHERE usuario = 'admin' LIMIT 1");
+      const targetId = adminRow[0] ? adminRow[0].id : (await pool.query('SELECT id FROM usuarios ORDER BY id ASC LIMIT 1')).rows[0].id;
+      await pool.query("UPDATE usuarios SET rol = 'superadministrador' WHERE id = $1", [targetId]);
+      console.log('Usuario existente promovido a Super Administrador (id ' + targetId + ').');
+    }
   }
 }
 
