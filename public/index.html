@@ -140,6 +140,14 @@
   .ficha-grid dt{font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:2px;}
   .ficha-grid dd{margin:0 0 8px;}
   .modal-close-row{display:flex;justify-content:flex-end;margin-top:18px;}
+  .ficha-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:10px 0 14px;}
+  .ficha-tab{background:none;border:none;padding:8px 14px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .ficha-tab.active{color:var(--primary-dark);border-bottom-color:var(--primary);}
+  .comentario-item{border-bottom:1px solid var(--border-soft);padding:8px 0;}
+  .comentario-item:last-child{border-bottom:none;}
+  .comentario-meta{font-size:10.5px;color:var(--ink-soft);margin-bottom:2px;}
+  .comentario-texto{font-size:12.5px;color:var(--ink);white-space:pre-wrap;}
+  .comentarios-empty{font-size:12px;color:var(--ink-faint);padding:10px 0;}
   .cc-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:12px;}
   .cc-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
   .cc-card-head h3{margin:0;font-size:15.5px;font-weight:600;font-family:'Inter',sans-serif;}
@@ -687,10 +695,25 @@
 <div class="toast" id="toast"></div>
 
 <div class="modal-bg" id="modal-ficha" style="display:none">
-  <div class="modal">
+  <div class="modal" style="width:640px">
     <h3 id="ficha-nombre">Ficha del usuario</h3>
     <p class="modal-sub" id="ficha-fecha"></p>
-    <dl class="ficha-grid" id="ficha-body"></dl>
+    <div class="ficha-tabs">
+      <button type="button" class="ficha-tab active" data-ficha-tab="info">Información</button>
+      <button type="button" class="ficha-tab" data-ficha-tab="comentarios">Comentarios</button>
+    </div>
+    <div id="ficha-panel-info">
+      <dl class="ficha-grid" id="ficha-body"></dl>
+    </div>
+    <div id="ficha-panel-comentarios" style="display:none">
+      <div class="field" style="margin-bottom:8px">
+        <textarea id="comentario-nuevo" placeholder="Escribe un comentario..." style="min-height:56px"></textarea>
+      </div>
+      <div class="modal-close-row" style="justify-content:flex-end;margin-top:0;margin-bottom:12px">
+        <button type="button" class="btn btn-primary" id="btn-agregar-comentario" style="padding:7px 14px;font-size:12.5px">Agregar comentario</button>
+      </div>
+      <div id="lista-comentarios"></div>
+    </div>
     <div class="modal-close-row">
       <button class="btn btn-ghost" id="ficha-cerrar">Cerrar</button>
     </div>
@@ -698,6 +721,7 @@
 </div>
 
 <script>
+
 (function(){
   const API = '/api';
   let clientes = [];
@@ -1462,9 +1486,11 @@
   function fichaCampo(label, valor){
     return `<div><dt>${label}</dt><dd>${escapeHtml(valor||'—')}</dd></div>`;
   }
+  let fichaClienteId = null;
   function abrirFicha(id){
     const c = clientes.find(x=>String(x.id)===String(id));
     if(!c) return;
+    fichaClienteId = id;
     document.getElementById('ficha-nombre').textContent = c.usuario;
     document.getElementById('ficha-fecha').textContent = 'Registrado el '+formatFecha(c.fecha);
     document.getElementById('ficha-body').innerHTML = [
@@ -1499,8 +1525,58 @@
       c.vta ? fichaCampo('Elaborado por', c.elaboradoPor) : '',
       c.vta ? fichaCampo('Firma y huella', c.firmaHuella ? 'Sí' : 'No') : ''
     ].join('');
+    document.querySelectorAll('.ficha-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelector('.ficha-tab[data-ficha-tab="info"]').classList.add('active');
+    document.getElementById('ficha-panel-info').style.display='';
+    document.getElementById('ficha-panel-comentarios').style.display='none';
+    document.getElementById('comentario-nuevo').value='';
     document.getElementById('modal-ficha').style.display='flex';
   }
+  document.querySelectorAll('.ficha-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('.ficha-tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      const which = tab.dataset.fichaTab;
+      document.getElementById('ficha-panel-info').style.display = which==='info' ? '' : 'none';
+      document.getElementById('ficha-panel-comentarios').style.display = which==='comentarios' ? '' : 'none';
+      if(which==='comentarios') cargarComentarios();
+    });
+  });
+
+  function formatFechaHora(iso){
+    const d = new Date(iso);
+    const fecha = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+    const hora = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    return fecha+' · '+hora;
+  }
+  async function cargarComentarios(){
+    const cont = document.getElementById('lista-comentarios');
+    cont.innerHTML = '<div class="comentarios-empty">Cargando...</div>';
+    try{
+      const comentarios = await apiGet('/clientes/'+fichaClienteId+'/comentarios');
+      if(comentarios.length===0){
+        cont.innerHTML = '<div class="comentarios-empty">Sin comentarios todavía.</div>';
+        return;
+      }
+      cont.innerHTML = comentarios.map(c=>`
+        <div class="comentario-item">
+          <div class="comentario-meta">${escapeHtml(c.usuarioNombre)} · ${formatFechaHora(c.creado)}</div>
+          <div class="comentario-texto">${escapeHtml(c.comentario)}</div>
+        </div>`).join('');
+    }catch(e){
+      cont.innerHTML = '<div class="comentarios-empty">No se pudieron cargar los comentarios.</div>';
+    }
+  }
+  document.getElementById('btn-agregar-comentario').addEventListener('click', async ()=>{
+    const texto = document.getElementById('comentario-nuevo').value.trim();
+    if(!texto) return;
+    try{
+      await apiSend('POST', '/clientes/'+fichaClienteId+'/comentarios', { comentario: texto });
+      document.getElementById('comentario-nuevo').value='';
+      cargarComentarios();
+    }catch(e){ showToast(e.message||'No se pudo guardar el comentario'); }
+  });
+
   document.getElementById('ficha-cerrar').addEventListener('click', ()=>{
     document.getElementById('modal-ficha').style.display='none';
   });

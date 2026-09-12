@@ -88,6 +88,14 @@ async function initDb() {
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permisos JSONB DEFAULT '{}'::jsonb;
     ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
     ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check CHECK (rol IN ('administrador','consultor','closer','gerente','superadministrador'));
+    CREATE TABLE IF NOT EXISTS comentarios (
+      id SERIAL PRIMARY KEY,
+      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      usuario_nombre TEXT NOT NULL,
+      usuario_login TEXT,
+      comentario TEXT NOT NULL,
+      creado TIMESTAMPTZ DEFAULT now()
+    );
     CREATE TABLE IF NOT EXISTS clientes (
       id SERIAL PRIMARY KEY,
       fecha DATE,
@@ -378,6 +386,33 @@ app.delete('/api/clientes/:id', requirePerm('borrarClientes'), async (req, res) 
     await pool.query('DELETE FROM clientes WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar el registro' }); }
+});
+
+// ---------- Comentarios ----------
+app.get('/api/clientes/:id/comentarios', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, usuario_nombre AS "usuarioNombre", usuario_login AS "usuarioLogin", comentario, creado
+       FROM comentarios WHERE cliente_id = $1 ORDER BY creado DESC`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al leer comentarios' }); }
+});
+
+app.post('/api/clientes/:id/comentarios', async (req, res) => {
+  try {
+    const texto = (req.body.comentario || '').trim();
+    if (!texto) return res.status(400).json({ error: 'El comentario no puede estar vacío' });
+    const u = req.session.user;
+    const { rows } = await pool.query(
+      `INSERT INTO comentarios (cliente_id, usuario_nombre, usuario_login, comentario)
+       VALUES ($1,$2,$3,$4)
+       RETURNING id, usuario_nombre AS "usuarioNombre", usuario_login AS "usuarioLogin", comentario, creado`,
+      [req.params.id, u.nombre, u.usuario, texto]
+    );
+    res.json(rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al guardar el comentario' }); }
 });
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
