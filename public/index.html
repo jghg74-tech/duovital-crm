@@ -695,15 +695,27 @@
 <div class="toast" id="toast"></div>
 
 <div class="modal-bg" id="modal-ficha" style="display:none">
-  <div class="modal" style="width:640px">
+  <div class="modal" style="width:680px">
     <h3 id="ficha-nombre">Ficha del usuario</h3>
     <p class="modal-sub" id="ficha-fecha"></p>
     <div class="ficha-tabs">
-      <button type="button" class="ficha-tab active" data-ficha-tab="info">Información</button>
+      <button type="button" class="ficha-tab active" data-ficha-tab="cliente">Cliente</button>
+      <button type="button" class="ficha-tab" data-ficha-tab="salud">Salud</button>
+      <button type="button" class="ficha-tab" data-ficha-tab="comercial">Comercial</button>
+      <button type="button" class="ficha-tab" data-ficha-tab="cartera">Cartera</button>
       <button type="button" class="ficha-tab" data-ficha-tab="comentarios">Comentarios</button>
     </div>
-    <div id="ficha-panel-info">
-      <dl class="ficha-grid" id="ficha-body"></dl>
+    <div id="ficha-panel-cliente">
+      <dl class="ficha-grid" id="ficha-body-cliente"></dl>
+    </div>
+    <div id="ficha-panel-salud" style="display:none">
+      <dl class="ficha-grid" id="ficha-body-salud"></dl>
+    </div>
+    <div id="ficha-panel-comercial" style="display:none">
+      <dl class="ficha-grid" id="ficha-body-comercial"></dl>
+    </div>
+    <div id="ficha-panel-cartera" style="display:none">
+      <div id="ficha-body-cartera"></div>
     </div>
     <div id="ficha-panel-comentarios" style="display:none">
       <div class="field" style="margin-bottom:8px">
@@ -1519,7 +1531,8 @@
     fichaClienteId = id;
     document.getElementById('ficha-nombre').textContent = c.usuario;
     document.getElementById('ficha-fecha').textContent = 'Registrado el '+formatFecha(c.fecha);
-    document.getElementById('ficha-body').innerHTML = [
+
+    document.getElementById('ficha-body-cliente').innerHTML = [
       fichaCampo('Edad', c.edad),
       fichaCampo('Documento', c.documento),
       fichaCampo('Fecha de nacimiento', c.fechaNacimiento ? formatFecha(c.fechaNacimiento) : ''),
@@ -1529,6 +1542,13 @@
       fichaCampo('Estado civil', c.estadoCivil),
       fichaCampo('Eps', c.eps),
       fichaCampo('RH', c.rh),
+      fichaCampo('Acompañante', c.acompanante),
+      fichaCampo('Edad acompañante', c.edadAcomp),
+      c.vta ? fichaCampo('Contacto emergencia 1', [c.emergencia1Nombre, c.emergencia1Celular].filter(Boolean).join(' · ')) : '',
+      c.vta ? fichaCampo('Contacto emergencia 2', [c.emergencia2Nombre, c.emergencia2Celular].filter(Boolean).join(' · ')) : ''
+    ].join('');
+
+    document.getElementById('ficha-body-salud').innerHTML = [
       `<div class="full">${fichaCampo('Enfermedades', c.enfermedades)}</div>`,
       `<div class="full">${fichaCampo('Medicamentos', c.medicamentos)}</div>`,
       `<div class="full">${fichaCampo('Alergias', c.alergias)}</div>`,
@@ -1536,25 +1556,62 @@
       fichaCampo('¿Cuál dispositivo?', c.dispositivosCual),
       `<div class="full">${fichaCampo('Cirugías', c.cirugias)}</div>`,
       `<div class="full">${fichaCampo('Observación', c.observacionUsuario)}</div>`,
-      fichaCampo('Autorización de datos firmada', c.firmaAutorizacion ? 'Sí' : 'No'),
-      fichaCampo('Acompañante', c.acompanante),
-      fichaCampo('Edad acompañante', c.edadAcomp),
-      c.vta ? `<div class="full" style="border-top:1px solid var(--border-soft);margin-top:8px;padding-top:8px;font-weight:700;font-size:12px;color:var(--primary-dark)">DATOS DE LA VENTA</div>` : '',
+      fichaCampo('Autorización de datos firmada', c.firmaAutorizacion ? 'Sí' : 'No')
+    ].join('');
+
+    document.getElementById('ficha-body-comercial').innerHTML = [
+      fichaCampo('Call Center', c.callCenter),
+      fichaCampo('TMK / Outsorsing', c.outsorsing),
+      fichaCampo('Consultor', c.consultor),
+      fichaCampo('Closer 1', c.closer1),
+      fichaCampo('Closer 2', c.closer2),
+      fichaCampo('Gerente', c.gerente),
+      fichaCampo('¿Tour?', c.tour ? 'Sí' : 'No'),
+      fichaCampo('¿NT?', c.nt ? 'Sí' : 'No'),
+      fichaCampo('¿Venta realizada?', c.vta ? 'Sí' : 'No'),
       c.vta ? fichaCampo('Ciudad', c.ciudad) : '',
       c.vta ? fichaCampo('Código', c.codigoVenta) : '',
       c.vta ? fichaCampo('No.', c.numeroVenta) : '',
-      c.vta ? fichaCampo('Contacto emergencia 1', [c.emergencia1Nombre, c.emergencia1Celular].filter(Boolean).join(' · ')) : '',
-      c.vta ? fichaCampo('Contacto emergencia 2', [c.emergencia2Nombre, c.emergencia2Celular].filter(Boolean).join(' · ')) : '',
+      c.vta ? fichaCampo('No. Contrato', c.contrato) : '',
       c.vta && c.productos && c.productos.length ? `<div class="full"><dt>Productos</dt><dd>${c.productos.map(p=>`${escapeHtml(p.producto||'—')} (lote ${escapeHtml(p.lote||'—')}) x${escapeHtml(p.cantidad||'—')} · ${money(p.valor)}`).join('<br>')}</dd></div>` : '',
       c.vta ? fichaCampo('Método de pago', [c.metodoPago, c.metodoPagoDetalle].filter(Boolean).join(' · ')) : '',
-      c.vta && c.cuotas && c.cuotas.length ? `<div class="full"><dt>Cuotas de la cartera</dt><dd>${c.cuotas.map(q=>`Cuota ${q.numero}: ${money(q.monto)} · vence ${formatFecha(q.fecha)}${q.fechaPago?' · pagada '+formatFecha(q.fechaPago):' · pendiente'}`).join('<br>')}</dd></div>` : '',
       c.vta ? fichaCampo('Elaborado por', c.elaboradoPor) : '',
       c.vta ? fichaCampo('Firma y huella', c.firmaHuella ? 'Sí' : 'No') : ''
     ].join('');
+
+    const carteraCont = document.getElementById('ficha-body-cartera');
+    if(!c.vta){
+      carteraCont.innerHTML = '<div class="comentarios-empty">Este cliente no tiene venta registrada.</div>';
+    } else {
+      let html = `<dl class="ficha-grid">
+        ${fichaCampo('Volumen / Total', money(c.volumen))}
+        ${fichaCampo('Abono / Cash', money(c.cash))}
+        ${fichaCampo('Saldo / Cartera', money(c.cartera))}
+      </dl>`;
+      if(c.cuotas && c.cuotas.length){
+        html += `<table class="fin-table" style="margin-top:10px">
+          <thead><tr><th>Fecha</th><th>No. Cuota</th><th class="num">Saldo</th><th class="num">Vlr Capital</th><th class="num">Vlr Cuota</th><th>Fecha de pago</th></tr></thead>
+          <tbody>
+          ${c.cuotas.map(q=>`
+            <tr>
+              <td>${formatFecha(q.fecha)}</td>
+              <td>${q.numero}</td>
+              <td class="num">${money(q.saldo)}</td>
+              <td class="num">${money(q.capital!=null?q.capital:q.monto)}</td>
+              <td class="num">${money(q.monto)}</td>
+              <td>${q.fechaPago ? formatFecha(q.fechaPago) : '<span class="sub">Pendiente</span>'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+      }
+      carteraCont.innerHTML = html;
+    }
+
     document.querySelectorAll('.ficha-tab').forEach(t=>t.classList.remove('active'));
-    document.querySelector('.ficha-tab[data-ficha-tab="info"]').classList.add('active');
-    document.getElementById('ficha-panel-info').style.display='';
-    document.getElementById('ficha-panel-comentarios').style.display='none';
+    document.querySelector('.ficha-tab[data-ficha-tab="cliente"]').classList.add('active');
+    ['cliente','salud','comercial','cartera','comentarios'].forEach(k=>{
+      document.getElementById('ficha-panel-'+k).style.display = (k==='cliente') ? '' : 'none';
+    });
     document.getElementById('comentario-nuevo').value='';
     document.getElementById('modal-ficha').style.display='flex';
   }
@@ -1563,8 +1620,9 @@
       document.querySelectorAll('.ficha-tab').forEach(t=>t.classList.remove('active'));
       tab.classList.add('active');
       const which = tab.dataset.fichaTab;
-      document.getElementById('ficha-panel-info').style.display = which==='info' ? '' : 'none';
-      document.getElementById('ficha-panel-comentarios').style.display = which==='comentarios' ? '' : 'none';
+      ['cliente','salud','comercial','cartera','comentarios'].forEach(k=>{
+        document.getElementById('ficha-panel-'+k).style.display = (k===which) ? '' : 'none';
+      });
       if(which==='comentarios') cargarComentarios();
     });
   });
