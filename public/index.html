@@ -140,9 +140,14 @@
   .ficha-grid dt{font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:2px;}
   .ficha-grid dd{margin:0 0 8px;}
   .modal-close-row{display:flex;justify-content:flex-end;margin-top:18px;}
-  .ficha-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:10px 0 14px;}
-  .ficha-tab{background:none;border:none;padding:8px 14px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
-  .ficha-tab.active{color:var(--primary-dark);border-bottom-color:var(--primary);}
+  .ficha-tabs{display:flex;gap:3px;border-bottom:2px solid var(--primary-dark);margin:10px 0 16px;padding:0;}
+  .ficha-tab{background:var(--beige-soft);border:1px solid var(--border);border-bottom:none;padding:7px 14px;font-size:11.5px;font-weight:600;color:var(--primary-dark);cursor:pointer;border-radius:5px 5px 0 0;position:relative;top:1px;}
+  .ficha-tab.active{background:#fff;color:var(--ink);border-color:var(--primary-dark);border-bottom:2px solid #fff;font-weight:700;}
+  .sec-banner{background:var(--primary-dark);color:#fff;text-align:center;font-weight:700;font-size:11px;padding:6px;letter-spacing:.3px;text-transform:uppercase;border-radius:4px 4px 0 0;}
+  table.info-table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:12px;border:1px solid var(--border);}
+  table.info-table th{background:var(--primary-soft);color:var(--primary-dark);font-size:10px;text-transform:uppercase;padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);}
+  table.info-table td{padding:6px 8px;border-bottom:1px solid var(--border-soft);}
+  table.info-table tr:last-child td{border-bottom:none;}
   .comentario-item{border-bottom:1px solid var(--border-soft);padding:8px 0;}
   .comentario-item:last-child{border-bottom:none;}
   .comentario-meta{font-size:10.5px;color:var(--ink-soft);margin-bottom:2px;}
@@ -508,8 +513,31 @@
         </div>
         <button class="btn btn-accent" id="btn-exportar" data-roles="administrador,gerente,superadministrador">Exportar informe (.xlsx)</button>
       </div>
+
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+        <div class="sec-banner" style="border-radius:0;font-size:13px;padding:10px">Información del cliente</div>
+        <div style="padding:16px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+          <div class="field" style="min-width:160px">
+            <label>Documento</label>
+            <input type="text" id="buscar-documento" placeholder="No. de documento">
+          </div>
+          <div class="field" style="min-width:160px">
+            <label>Nombre</label>
+            <input type="text" id="buscar-nombre">
+          </div>
+          <div class="field" style="min-width:160px">
+            <label>Teléfono</label>
+            <input type="text" id="buscar-telefono">
+          </div>
+          <button type="button" class="btn btn-primary" id="btn-buscar-cliente" style="padding:8px 18px">Buscar</button>
+        </div>
+        <div id="buscar-resultados"></div>
+      </div>
+
+      <div id="detalle-cliente" style="display:none;margin-bottom:20px"></div>
+
       <div class="toolbar">
-        <input class="search" type="text" id="buscar-cliente" placeholder="Buscar por nombre, consultor o closer...">
+        <input class="search" type="text" id="buscar-cliente" placeholder="Buscar por nombre, documento, consultor o closer...">
         <span class="count-pill" id="pill-count">0 clientes</span>
       </div>
       <div class="card" style="padding:0;overflow:hidden">
@@ -695,10 +723,15 @@
 
 <div class="toast" id="toast"></div>
 
-<div class="modal-bg" id="modal-ficha" style="display:none">
-  <div class="modal" style="width:680px">
-    <h3 id="ficha-nombre">Ficha del usuario</h3>
-    <p class="modal-sub" id="ficha-fecha"></p>
+<script id="tpl-detalle-cliente" type="text/x-template">
+  <div class="card">
+    <div class="page-head" style="margin-bottom:6px">
+      <div>
+        <h3 id="ficha-nombre" style="margin:0">Ficha del usuario</h3>
+        <p class="modal-sub" id="ficha-fecha"></p>
+      </div>
+      <button class="btn btn-ghost" id="ficha-cerrar">Cerrar detalle</button>
+    </div>
     <div class="ficha-tabs">
       <button type="button" class="ficha-tab active" data-ficha-tab="cliente">Cliente</button>
       <button type="button" class="ficha-tab" data-ficha-tab="salud">Salud</button>
@@ -708,13 +741,13 @@
       <button type="button" class="ficha-tab" data-ficha-tab="comentarios">Comentarios</button>
     </div>
     <div id="ficha-panel-cliente">
-      <dl class="ficha-grid" id="ficha-body-cliente"></dl>
+      <div id="ficha-body-cliente"></div>
     </div>
     <div id="ficha-panel-salud" style="display:none">
-      <dl class="ficha-grid" id="ficha-body-salud"></dl>
+      <div id="ficha-body-salud"></div>
     </div>
     <div id="ficha-panel-comercial" style="display:none">
-      <dl class="ficha-grid" id="ficha-body-comercial"></dl>
+      <div id="ficha-body-comercial"></div>
     </div>
     <div id="ficha-panel-cartera" style="display:none">
       <div id="ficha-body-cartera"></div>
@@ -750,16 +783,14 @@
       </div>
       <div id="lista-comentarios"></div>
     </div>
-    <div class="modal-close-row">
-      <button class="btn btn-ghost" id="ficha-cerrar">Cerrar</button>
-    </div>
   </div>
-</div>
+</script>
 
 <script>
 
 (function(){
   const API = '/api';
+  document.getElementById('detalle-cliente').innerHTML = document.getElementById('tpl-detalle-cliente').innerHTML;
   let clientes = [];
   let callCenters = [];
   let equipo = { consultor: [], closer: [], gerente: [] };
@@ -1485,7 +1516,7 @@
   function renderClientes(){
     const term = document.getElementById('buscar-cliente').value.toLowerCase();
     const filtered = clientes.filter(c=>
-      !term || c.usuario.toLowerCase().includes(term) || (c.consultor||'').toLowerCase().includes(term) || (c.closer1||'').toLowerCase().includes(term) || (c.closer2||'').toLowerCase().includes(term)
+      !term || c.usuario.toLowerCase().includes(term) || (c.documento||'').toLowerCase().includes(term) || (c.consultor||'').toLowerCase().includes(term) || (c.closer1||'').toLowerCase().includes(term) || (c.closer2||'').toLowerCase().includes(term)
     );
     document.getElementById('pill-count').textContent = filtered.length + (filtered.length===1?' cliente':' clientes');
     const tbody = document.getElementById('tabla-clientes');
@@ -1544,9 +1575,61 @@
   }
   document.getElementById('buscar-cliente').addEventListener('input', renderClientes);
 
+  // ---------- Búsqueda por documento / nombre / teléfono ----------
+  function ejecutarBusquedaCliente(){
+    const doc = document.getElementById('buscar-documento').value.trim().toLowerCase();
+    const nom = document.getElementById('buscar-nombre').value.trim().toLowerCase();
+    const tel = document.getElementById('buscar-telefono').value.trim().toLowerCase();
+    const cont = document.getElementById('buscar-resultados');
+    if(!doc && !nom && !tel){
+      cont.innerHTML = '';
+      return;
+    }
+    const encontrados = clientes.filter(c=>
+      (!doc || (c.documento||'').toLowerCase().includes(doc)) &&
+      (!nom || c.usuario.toLowerCase().includes(nom)) &&
+      (!tel || (c.telefono||'').toLowerCase().includes(tel))
+    );
+    if(encontrados.length===0){
+      cont.innerHTML = '<div class="comentarios-empty" style="padding:14px">No se encontraron clientes con esos datos.</div>';
+      document.getElementById('detalle-cliente').style.display='none';
+      return;
+    }
+    cont.innerHTML = `<table class="info-table" style="margin:0;border-top:none">
+      <tr><th>Nombre</th><th>Documento</th><th>Edad</th><th>Teléfono</th><th>Estado civil</th><th>Consultor</th><th></th></tr>
+      ${encontrados.map(c=>`
+        <tr>
+          <td>${escapeHtml(c.usuario)}</td>
+          <td>${escapeHtml(c.documento||'—')}</td>
+          <td>${escapeHtml(c.edad||'—')}</td>
+          <td>${escapeHtml(c.telefono||'—')}</td>
+          <td>${escapeHtml(c.estadoCivil||'—')}</td>
+          <td>${escapeHtml(c.consultor||'—')}</td>
+          <td><button type="button" class="btn btn-primary" data-ver-encontrado="${c.id}" style="padding:5px 12px;font-size:11.5px">Ver</button></td>
+        </tr>`).join('')}
+      </table>`;
+    cont.querySelectorAll('[data-ver-encontrado]').forEach(btn=>{
+      btn.addEventListener('click', ()=> abrirFicha(btn.dataset.verEncontrado));
+    });
+    if(encontrados.length===1) abrirFicha(encontrados[0].id);
+  }
+  document.getElementById('btn-buscar-cliente').addEventListener('click', ejecutarBusquedaCliente);
+  ['buscar-documento','buscar-nombre','buscar-telefono'].forEach(id=>{
+    document.getElementById(id).addEventListener('keydown', (e)=>{
+      if(e.key==='Enter'){ e.preventDefault(); ejecutarBusquedaCliente(); }
+    });
+  });
+
   // ---------- Ficha del usuario ----------
   function fichaCampo(label, valor){
     return `<div><dt>${label}</dt><dd>${escapeHtml(valor||'—')}</dd></div>`;
+  }
+  function seccionTabla(titulo, pares){
+    return `<div class="sec-banner">${escapeHtml(titulo)}</div>
+      <table class="info-table">
+        <tr>${pares.map(([l])=>`<th>${escapeHtml(l)}</th>`).join('')}</tr>
+        <tr>${pares.map(([,v])=>`<td>${escapeHtml(v||'—')}</td>`).join('')}</tr>
+      </table>`;
   }
   let fichaClienteId = null;
   function abrirFicha(id){
@@ -1557,50 +1640,75 @@
     document.getElementById('ficha-fecha').textContent = 'Registrado el '+formatFecha(c.fecha);
 
     document.getElementById('ficha-body-cliente').innerHTML = [
-      fichaCampo('Edad', c.edad),
-      fichaCampo('Documento', c.documento),
-      fichaCampo('Fecha de nacimiento', c.fechaNacimiento ? formatFecha(c.fechaNacimiento) : ''),
-      fichaCampo('Teléfono', c.telefono),
-      `<div class="full">${fichaCampo('Dirección', c.direccion)}</div>`,
-      fichaCampo('Ocupación', c.ocupacion),
-      fichaCampo('Estado civil', c.estadoCivil),
-      fichaCampo('Eps', c.eps),
-      fichaCampo('RH', c.rh),
-      fichaCampo('Acompañante', c.acompanante),
-      fichaCampo('Edad acompañante', c.edadAcomp),
-      c.vta ? fichaCampo('Contacto emergencia 1', [c.emergencia1Nombre, c.emergencia1Celular].filter(Boolean).join(' · ')) : '',
-      c.vta ? fichaCampo('Contacto emergencia 2', [c.emergencia2Nombre, c.emergencia2Celular].filter(Boolean).join(' · ')) : ''
+      seccionTabla('Datos personales', [
+        ['Edad', c.edad],
+        ['Documento', c.documento],
+        ['Fecha de nacimiento', c.fechaNacimiento ? formatFecha(c.fechaNacimiento) : ''],
+        ['Estado civil', c.estadoCivil]
+      ]),
+      seccionTabla('Contacto', [
+        ['Teléfono', c.telefono],
+        ['Dirección', c.direccion],
+        ['Ocupación', c.ocupacion],
+        ['Eps', c.eps],
+        ['RH', c.rh]
+      ]),
+      seccionTabla('Acompañante', [
+        ['Nombre', c.acompanante],
+        ['Edad', c.edadAcomp]
+      ]),
+      c.vta ? seccionTabla('Contacto de emergencia', [
+        ['Contacto 1', [c.emergencia1Nombre, c.emergencia1Celular].filter(Boolean).join(' · ')],
+        ['Contacto 2', [c.emergencia2Nombre, c.emergencia2Celular].filter(Boolean).join(' · ')]
+      ]) : ''
     ].join('');
 
     document.getElementById('ficha-body-salud').innerHTML = [
-      `<div class="full">${fichaCampo('Enfermedades', c.enfermedades)}</div>`,
-      `<div class="full">${fichaCampo('Medicamentos', c.medicamentos)}</div>`,
-      `<div class="full">${fichaCampo('Alergias', c.alergias)}</div>`,
-      fichaCampo('¿Dispositivos?', c.dispositivos ? 'Sí' : 'No'),
-      fichaCampo('¿Cuál dispositivo?', c.dispositivosCual),
-      `<div class="full">${fichaCampo('Cirugías', c.cirugias)}</div>`,
-      `<div class="full">${fichaCampo('Observación', c.observacionUsuario)}</div>`,
-      fichaCampo('Autorización de datos firmada', c.firmaAutorizacion ? 'Sí' : 'No')
+      seccionTabla('Condiciones de salud', [
+        ['Enfermedades', c.enfermedades],
+        ['Medicamentos', c.medicamentos],
+        ['Alergias', c.alergias]
+      ]),
+      seccionTabla('Dispositivos y cirugías', [
+        ['¿Dispositivos?', c.dispositivos ? 'Sí' : 'No'],
+        ['¿Cuál?', c.dispositivosCual],
+        ['Cirugías', c.cirugias]
+      ]),
+      seccionTabla('Observación y autorización', [
+        ['Observación', c.observacionUsuario],
+        ['Autorización de datos firmada', c.firmaAutorizacion ? 'Sí' : 'No']
+      ])
     ].join('');
 
     document.getElementById('ficha-body-comercial').innerHTML = [
-      fichaCampo('Call Center', c.callCenter),
-      fichaCampo('TMK / Outsorsing', c.outsorsing),
-      fichaCampo('Consultor', c.consultor),
-      fichaCampo('Closer 1', c.closer1),
-      fichaCampo('Closer 2', c.closer2),
-      fichaCampo('Gerente', c.gerente),
-      fichaCampo('¿Tour?', c.tour ? 'Sí' : 'No'),
-      fichaCampo('¿NT?', c.nt ? 'Sí' : 'No'),
-      fichaCampo('¿Venta realizada?', c.vta ? 'Sí' : 'No'),
-      c.vta ? fichaCampo('Ciudad', c.ciudad) : '',
-      c.vta ? fichaCampo('Código', c.codigoVenta) : '',
-      c.vta ? fichaCampo('No.', c.numeroVenta) : '',
-      c.vta ? fichaCampo('No. Contrato', c.contrato) : '',
-      c.vta && c.productos && c.productos.length ? `<div class="full"><dt>Productos</dt><dd>${c.productos.map(p=>`${escapeHtml(p.producto||'—')} (lote ${escapeHtml(p.lote||'—')}) x${escapeHtml(p.cantidad||'—')} · ${money(p.valor)}`).join('<br>')}</dd></div>` : '',
-      c.vta ? fichaCampo('Método de pago', [c.metodoPago, c.metodoPagoDetalle].filter(Boolean).join(' · ')) : '',
-      c.vta ? fichaCampo('Elaborado por', c.elaboradoPor) : '',
-      c.vta ? fichaCampo('Firma y huella', c.firmaHuella ? 'Sí' : 'No') : ''
+      seccionTabla('Proceso comercial', [
+        ['Call Center', c.callCenter],
+        ['TMK / Outsorsing', c.outsorsing],
+        ['Consultor', c.consultor],
+        ['Closer 1', c.closer1],
+        ['Closer 2', c.closer2],
+        ['Gerente', c.gerente]
+      ]),
+      seccionTabla('Estado de la atención', [
+        ['¿Tour?', c.tour ? 'Sí' : 'No'],
+        ['¿NT?', c.nt ? 'Sí' : 'No'],
+        ['¿Venta realizada?', c.vta ? 'Sí' : 'No']
+      ]),
+      c.vta ? seccionTabla('Datos de la venta', [
+        ['Ciudad', c.ciudad],
+        ['Código', c.codigoVenta],
+        ['No.', c.numeroVenta],
+        ['No. Contrato', c.contrato]
+      ]) : '',
+      c.vta && c.productos && c.productos.length ? `<div class="sec-banner">Productos</div>
+        <table class="info-table"><tr><th>Producto</th><th>Lote</th><th>Cantidad</th><th>Valor</th></tr>
+        ${c.productos.map(p=>`<tr><td>${escapeHtml(p.producto||'—')}</td><td>${escapeHtml(p.lote||'—')}</td><td>${escapeHtml(p.cantidad||'—')}</td><td>${money(p.valor)}</td></tr>`).join('')}
+        </table>` : '',
+      c.vta ? seccionTabla('Detalle del pago', [
+        ['Método de pago', [c.metodoPago, c.metodoPagoDetalle].filter(Boolean).join(' · ')],
+        ['Elaborado por', c.elaboradoPor],
+        ['Firma y huella', c.firmaHuella ? 'Sí' : 'No']
+      ]) : ''
     ].join('');
 
     const carteraCont = document.getElementById('ficha-body-cartera');
@@ -1640,7 +1748,8 @@
     document.getElementById('recibo-fecha').value = new Date().toISOString().slice(0,10);
     document.getElementById('recibo-numero').value='';
     document.getElementById('recibo-valor').value='';
-    document.getElementById('modal-ficha').style.display='flex';
+    document.getElementById('detalle-cliente').style.display='';
+    document.getElementById('detalle-cliente').scrollIntoView({behavior:'smooth', block:'start'});
   }
   document.querySelectorAll('.ficha-tab').forEach(tab=>{
     tab.addEventListener('click', ()=>{
@@ -1747,7 +1856,7 @@
   });
 
   document.getElementById('ficha-cerrar').addEventListener('click', ()=>{
-    document.getElementById('modal-ficha').style.display='none';
+    document.getElementById('detalle-cliente').style.display='none';
   });
 
   // ---------- Exportar informe ----------
