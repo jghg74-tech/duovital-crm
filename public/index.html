@@ -538,6 +538,22 @@
       </div>
 
       <div id="detalle-cliente" style="display:none;margin-bottom:20px"></div>
+    </section>
+
+    <!-- MANIFIESTO -->
+    <section id="view-manifiesto" style="display:none">
+      <div class="page-head">
+        <div>
+          <h1>Manifiesto</h1>
+          <p>Genera el informe mensual en Excel con la estructura del manifiesto de outsourcing.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <p style="margin:0 0 14px;font-size:13px;color:var(--ink-soft)">
+          Exporta todos los clientes registrados agrupados por mes, con las columnas del manifiesto original (Fecha, Usuario, Outsorsing, Consultor, Closer, Volumen, Cash, Cartera, VTA, TOUR, NT, etc.).
+        </p>
+        <button class="btn btn-accent" id="btn-exportar">Exportar informe (.xlsx)</button>
+      </div>
 
       <div class="toolbar">
         <input class="search" type="text" id="buscar-cliente" placeholder="Buscar por nombre, documento, consultor o closer...">
@@ -565,7 +581,6 @@
                 <th>Contrato</th>
                 <th>Estado</th>
                 <th>Observaciones</th>
-                <th></th>
               </tr>
             </thead>
             <tbody id="tabla-clientes"></tbody>
@@ -575,22 +590,6 @@
           <h3>Todavía no hay clientes registrados</h3>
           <p>Usa "Registrar cliente" para agregar el primero.</p>
         </div>
-      </div>
-    </section>
-
-    <!-- MANIFIESTO -->
-    <section id="view-manifiesto" style="display:none">
-      <div class="page-head">
-        <div>
-          <h1>Manifiesto</h1>
-          <p>Genera el informe mensual en Excel con la estructura del manifiesto de outsourcing.</p>
-        </div>
-      </div>
-      <div class="card">
-        <p style="margin:0 0 14px;font-size:13px;color:var(--ink-soft)">
-          Exporta todos los clientes registrados agrupados por mes, con las columnas del manifiesto original (Fecha, Usuario, Outsorsing, Consultor, Closer, Volumen, Cash, Cartera, VTA, TOUR, NT, etc.).
-        </p>
-        <button class="btn btn-accent" id="btn-exportar">Exportar informe (.xlsx)</button>
       </div>
     </section>
 
@@ -749,7 +748,10 @@
         <h3 id="ficha-nombre" style="margin:0">Ficha del usuario</h3>
         <p class="modal-sub" id="ficha-fecha"></p>
       </div>
-      <button class="btn btn-ghost" id="ficha-cerrar">Cerrar detalle</button>
+      <div>
+        <button class="btn btn-ghost" id="btn-eliminar-cliente-detalle" style="color:var(--danger);display:none">Eliminar cliente</button>
+        <button class="btn btn-ghost" id="ficha-cerrar">Cerrar detalle</button>
+      </div>
     </div>
     <div class="ficha-tabs">
       <button type="button" class="ficha-tab active" data-ficha-tab="cliente">Cliente</button>
@@ -950,7 +952,7 @@
       btn.classList.add('active');
       const v = btn.dataset.view;
       views.forEach(x=> document.getElementById('view-'+x).style.display = (x===v?'':'none'));
-      if(v==='clientes') renderClientes();
+      if(v==='manifiesto') renderClientes();
       if(v==='callcenters') renderCallCenters();
       if(v==='equipo') renderEquipo();
       if(v==='usuarios') renderUsuarios();
@@ -1571,26 +1573,8 @@
         <td>${escapeHtml(c.contrato||'—')}</td>
         <td>${estado}</td>
         <td class="sub">${escapeHtml(c.observaciones||'')}</td>
-        <td>
-          <button type="button" class="btn btn-ghost" data-ficha="${c.id}" style="padding:6px 12px;font-size:12.5px">Ver ficha</button>
-          ${hasPerm('borrarClientes') ? `<button type="button" class="btn btn-ghost" data-eliminar-cliente="${c.id}" style="padding:6px 12px;font-size:12.5px;color:var(--danger)">Eliminar</button>` : ''}
-        </td>
       </tr>`;
     }).join('');
-    tbody.querySelectorAll('[data-ficha]').forEach(btn=>{
-      btn.addEventListener('click', ()=> abrirFicha(btn.dataset.ficha));
-    });
-    tbody.querySelectorAll('[data-eliminar-cliente]').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
-        if(!confirm('¿Eliminar este registro? Esta acción no se puede deshacer.')) return;
-        try{
-          await apiSend('DELETE', '/clientes/'+btn.dataset.eliminarCliente);
-          clientes = clientes.filter(c=>String(c.id)!==btn.dataset.eliminarCliente);
-          renderClientes();
-          showToast('Registro eliminado');
-        }catch(e){ showToast(e.message||'No se pudo eliminar'); }
-      });
-    });
   }
   document.getElementById('buscar-cliente').addEventListener('input', renderClientes);
 
@@ -1767,9 +1751,20 @@
     document.getElementById('recibo-fecha').value = new Date().toISOString().slice(0,10);
     document.getElementById('recibo-numero').value='';
     document.getElementById('recibo-valor').value='';
+    document.getElementById('btn-eliminar-cliente-detalle').style.display = hasPerm('borrarClientes') ? '' : 'none';
     document.getElementById('detalle-cliente').style.display='';
     document.getElementById('detalle-cliente').scrollIntoView({behavior:'smooth', block:'start'});
   }
+  document.getElementById('btn-eliminar-cliente-detalle').addEventListener('click', async ()=>{
+    if(!fichaClienteId) return;
+    if(!confirm('¿Eliminar este registro? Esta acción no se puede deshacer.')) return;
+    try{
+      await apiSend('DELETE', '/clientes/'+fichaClienteId);
+      clientes = clientes.filter(c=>String(c.id)!==String(fichaClienteId));
+      document.getElementById('detalle-cliente').style.display='none';
+      showToast('Registro eliminado');
+    }catch(e){ showToast(e.message||'No se pudo eliminar'); }
+  });
   document.querySelectorAll('.ficha-tab').forEach(tab=>{
     tab.addEventListener('click', ()=>{
       document.querySelectorAll('.ficha-tab').forEach(t=>t.classList.remove('active'));
