@@ -1642,6 +1642,40 @@
       </table>`;
   }
   let fichaClienteId = null;
+  function renderCarteraTab(c){
+    const carteraCont = document.getElementById('ficha-body-cartera');
+    if(!c.vta){
+      carteraCont.innerHTML = '<div class="comentarios-empty">Este cliente no tiene venta registrada.</div>';
+      return;
+    }
+    let html = `<dl class="ficha-grid">
+      ${fichaCampo('Volumen / Total', money(c.volumen))}
+      ${fichaCampo('Abono / Cash', money(c.cash))}
+      ${fichaCampo('Saldo / Cartera', money(c.cartera))}
+    </dl>`;
+    if(c.cuotas && c.cuotas.length){
+      html += `<table class="fin-table" style="margin-top:10px">
+        <thead><tr><th>Fecha</th><th>No. Cuota</th><th class="num">Saldo</th><th class="num">Vlr Cuota</th><th class="num">Pagado</th><th class="num">Pendiente</th><th>Fecha de pago</th></tr></thead>
+        <tbody>
+        ${c.cuotas.map(q=>{
+          const pagado = q.pagado||0;
+          const pendiente = Math.max((q.monto||0)-pagado,0);
+          return `
+          <tr>
+            <td>${formatFecha(q.fecha)}</td>
+            <td>${q.numero}</td>
+            <td class="num">${money(q.saldo)}</td>
+            <td class="num">${money(q.monto)}</td>
+            <td class="num">${money(pagado)}</td>
+            <td class="num">${money(pendiente)}</td>
+            <td>${q.fechaPago ? formatFecha(q.fechaPago) : '<span class="sub">Pendiente</span>'}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>`;
+    }
+    carteraCont.innerHTML = html;
+  }
   function abrirFicha(id){
     const c = clientes.find(x=>String(x.id)===String(id));
     if(!c) return;
@@ -1705,33 +1739,7 @@
       ])
     ].join('');
 
-    const carteraCont = document.getElementById('ficha-body-cartera');
-    if(!c.vta){
-      carteraCont.innerHTML = '<div class="comentarios-empty">Este cliente no tiene venta registrada.</div>';
-    } else {
-      let html = `<dl class="ficha-grid">
-        ${fichaCampo('Volumen / Total', money(c.volumen))}
-        ${fichaCampo('Abono / Cash', money(c.cash))}
-        ${fichaCampo('Saldo / Cartera', money(c.cartera))}
-      </dl>`;
-      if(c.cuotas && c.cuotas.length){
-        html += `<table class="fin-table" style="margin-top:10px">
-          <thead><tr><th>Fecha</th><th>No. Cuota</th><th class="num">Saldo</th><th class="num">Vlr Capital</th><th class="num">Vlr Cuota</th><th>Fecha de pago</th></tr></thead>
-          <tbody>
-          ${c.cuotas.map(q=>`
-            <tr>
-              <td>${formatFecha(q.fecha)}</td>
-              <td>${q.numero}</td>
-              <td class="num">${money(q.saldo)}</td>
-              <td class="num">${money(q.capital!=null?q.capital:q.monto)}</td>
-              <td class="num">${money(q.monto)}</td>
-              <td>${q.fechaPago ? formatFecha(q.fechaPago) : '<span class="sub">Pendiente</span>'}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>`;
-      }
-      carteraCont.innerHTML = html;
-    }
+    renderCarteraTab(c);
 
     document.querySelectorAll('.ficha-tab').forEach(t=>t.classList.remove('active'));
     document.querySelector('.ficha-tab[data-ficha-tab="cliente"]').classList.add('active');
@@ -1834,6 +1842,7 @@
           try{
             await apiSend('DELETE', '/recibos/'+btn.dataset.eliminarRecibo);
             cargarRecibos();
+            await refrescarClienteActual();
             showToast('Recibo eliminado');
           }catch(e){ showToast(e.message||'No se pudo eliminar'); }
         });
@@ -1841,6 +1850,15 @@
     }catch(e){
       cont.innerHTML = '<div class="comentarios-empty">No se pudieron cargar los recibos.</div>';
     }
+  }
+  async function refrescarClienteActual(){
+    if(!fichaClienteId) return;
+    try{
+      const actualizado = await apiGet('/clientes/'+fichaClienteId);
+      const idx = clientes.findIndex(c=>String(c.id)===String(fichaClienteId));
+      if(idx>=0) clientes[idx] = actualizado;
+      renderCarteraTab(actualizado);
+    }catch(e){ /* silencioso */ }
   }
   document.getElementById('btn-agregar-recibo').addEventListener('click', async ()=>{
     const fecha = document.getElementById('recibo-fecha').value;
@@ -1856,7 +1874,8 @@
       document.getElementById('recibo-numero').value='';
       document.getElementById('recibo-valor').value='';
       cargarRecibos();
-      showToast('Recibo agregado');
+      await refrescarClienteActual();
+      showToast('Recibo agregado, se descontó de la cartera');
     }catch(e){ showToast(e.message||'No se pudo guardar el recibo'); }
   });
 

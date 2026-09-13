@@ -190,6 +190,14 @@ app.get('/api/clientes', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al leer clientes' }); }
 });
 
+app.get('/api/clientes/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT ${clienteCols} FROM clientes WHERE id = $1`, [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'No encontrado' });
+    res.json(rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al leer el cliente' }); }
+});
+
 app.post('/api/clientes', async (req, res) => {
   const c = req.body;
   try {
@@ -450,13 +458,66 @@ app.post('/api/clientes/:id/recibos', async (req, res) => {
        RETURNING id, numero_recibo AS "numeroRecibo", concepto, valor, fecha, usuario_nombre AS "usuarioNombre", usuario_login AS "usuarioLogin", creado`,
       [req.params.id, numeroRecibo || null, concepto || null, valor || 0, fecha, u.nombre, u.usuario]
     );
-    res.json(rows[0]);
+
+    const conceptosQueAbonan = ['Cuota inicial', 'Cuota financiación', 'Abono', 'Otro'];
+    let cuotasActualizadas = null;
+    let carteraActualizada = null;
+    if (conceptosQueAbonan.includes(concepto)) {
+      const { rows: clienteRows } = await pool.query('SELECT cuotas, cartera FROM clientes WHERE id = $1', [req.params.id]);
+      if (clienteRows[0]) {
+        let cuotas = Array.isArray(clienteRows[0].cuotas) ? clienteRows[0].cuotas : [];
+        let restante = Number(valor);
+        cuotas = cuotas.map(q => ({ ...q, pagado: q.pagado || 0 }));
+        cuotas.sort((a, b) => (a.numero || 0) - (b.numero || 0));
+        for (const cuota of cuotas) {
+          if (restante <= 0) break;
+          const pendiente = Number(cuota.monto || 0) - Number(cuota.pagado || 0);
+          if (pendiente <= 0) continue;
+          const aplicar = Math.min(restante, pendiente);
+          cuota.pagado = Number(cuota.pagado || 0) + aplicar;
+          restante -= aplicar;
+          if (cuota.pagado >= Number(cuota.monto || 0)) {
+            cuota.fechaPago = cuota.fechaPago || fecha;
+          }
+        }
+        const nuevaCartera = Math.max(Number(clienteRows[0].cartera || 0) - Number(valor), 0);
+        await pool.query('UPDATE clientes SET cuotas = $1, cartera = $2 WHERE id = $3', [JSON.stringify(cuotas), nuevaCartera, req.params.id]);
+        cuotasActualizadas = cuotas;
+        carteraActualizada = nuevaCartera;
+      }
+    }
+
+    res.json({ ...rows[0], cuotas: cuotasActualizadas, cartera: carteraActualizada });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al guardar el recibo' }); }
 });
 
 app.delete('/api/recibos/:id', requirePerm('borrarRecibos'), async (req, res) => {
   try {
+    const { rows: reciboRows } = await pool.query('SELECT cliente_id, valor, concepto FROM recibos WHERE id = $1', [req.params.id]);
+    const recibo = reciboRows[0];
     await pool.query('DELETE FROM recibos WHERE id = $1', [req.params.id]);
+
+    const conceptosQueAbonan = ['Cuota inicial', 'Cuota financiación', 'Abono', 'Otro'];
+    if (recibo && conceptosQueAbonan.includes(recibo.concepto)) {
+      const { rows: clienteRows } = await pool.query('SELECT cuotas, cartera FROM clientes WHERE id = $1', [recibo.cliente_id]);
+      if (clienteRows[0]) {
+        let cuotas = Array.isArray(clienteRows[0].cuotas) ? clienteRows[0].cuotas : [];
+        let restante = Number(recibo.valor);
+        cuotas.sort((a, b) => (b.numero || 0) - (a.numero || 0));
+        for (const cuota of cuotas) {
+          if (restante <= 0) break;
+          const pagado = Number(cuota.pagado || 0);
+          if (pagado <= 0) continue;
+          const revertir = Math.min(restante, pagado);
+          cuota.pagado = pagado - revertir;
+          restante -= revertir;
+          if (cuota.pagado < Number(cuota.monto || 0)) cuota.fechaPago = '';
+        }
+        cuotas.sort((a, b) => (a.numero || 0) - (b.numero || 0));
+        const nuevaCartera = Number(clienteRows[0].cartera || 0) + Number(recibo.valor);
+        await pool.query('UPDATE clientes SET cuotas = $1, cartera = $2 WHERE id = $3', [JSON.stringify(cuotas), nuevaCartera, recibo.cliente_id]);
+      }
+    }
     res.json({ ok: true });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar el recibo' }); }
 });
