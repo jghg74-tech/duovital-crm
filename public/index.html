@@ -422,7 +422,6 @@
             <div class="section-label">Detalle de la venta</div>
             <div class="grid three">
               <div class="field"><label>Ciudad</label><input type="text" id="f-ciudad"></div>
-              <div class="field"><label>Código</label><input type="text" id="f-codigo-venta"></div>
               <div class="field"><label>No.</label><input type="text" id="f-numero-venta" placeholder="Ej: 0565"></div>
             </div>
 
@@ -1503,7 +1502,6 @@
       contrato: vtaToggle.get() ? document.getElementById('f-contrato').value.trim() : '',
       observaciones: document.getElementById('f-observaciones').value.trim(),
       ciudad: vtaToggle.get() ? document.getElementById('f-ciudad').value.trim() : '',
-      codigoVenta: vtaToggle.get() ? document.getElementById('f-codigo-venta').value.trim() : '',
       numeroVenta: vtaToggle.get() ? document.getElementById('f-numero-venta').value.trim() : '',
       metodoPago: vtaToggle.get() ? document.getElementById('f-metodo-pago').value.trim() : '',
       metodoPagoDetalle: vtaToggle.get() ? (document.getElementById('f-metodo-tarjeta').value.trim() || document.getElementById('f-metodo-transferencia').value.trim()) : '',
