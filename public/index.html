@@ -106,6 +106,9 @@
   .badge.si{background:var(--primary-soft);color:var(--primary-dark);}
   .badge.no{background:#F5F0EC;color:#8A7A6E;}
   .badge.nt{background:var(--accent-soft);color:var(--danger);}
+  .badge.activo{background:var(--primary-soft);color:var(--primary-dark);}
+  .badge.finalizado{background:var(--gold-soft);color:#8A6A2E;}
+  .badge.invitado{background:var(--border-soft);color:var(--ink-soft);}
   .empty-state{padding:50px 20px;text-align:center;color:var(--ink-soft);}
   .empty-state h3{margin:0 0 6px;color:var(--ink);}
   .num{text-align:right;font-variant-numeric:tabular-nums;}
@@ -271,6 +274,10 @@
       <button class="nav-item" data-view="clientes">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Clientes
+      </button>
+      <button class="nav-item" data-view="estado">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.5 12l2 2 3.5-4"/></svg>
+        Estado
       </button>
       <button class="nav-item" data-view="manifiesto" data-roles="administrador,gerente,superadministrador">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6M9 9h1"/></svg>
@@ -529,6 +536,31 @@
       <div id="detalle-cliente" style="display:none;margin-bottom:20px"></div>
     </section>
 
+    <!-- ESTADO -->
+    <section id="view-estado" style="display:none">
+      <div class="page-head">
+        <div>
+          <h1>Estado</h1>
+          <p>Busca un cliente y cambia su estado (Activo / Finalizado). Los registros sin venta quedan como Invitado automáticamente.</p>
+        </div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+        <div class="sec-banner" style="border-radius:0;font-size:13px;padding:10px">Buscar cliente</div>
+        <div style="padding:16px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+          <div class="field" style="min-width:160px">
+            <label>Documento</label>
+            <input type="text" id="estado-buscar-documento" placeholder="No. de documento">
+          </div>
+          <div class="field" style="min-width:160px">
+            <label>Nombre</label>
+            <input type="text" id="estado-buscar-nombre">
+          </div>
+          <button type="button" class="btn btn-primary" id="btn-buscar-estado" style="padding:8px 18px">Buscar</button>
+        </div>
+        <div id="estado-resultados"></div>
+      </div>
+    </section>
+
     <!-- MANIFIESTO -->
     <section id="view-manifiesto" style="display:none">
       <div class="page-head">
@@ -568,6 +600,7 @@
                 <th class="num">Cash</th>
                 <th class="num">Cartera</th>
                 <th>Contrato</th>
+                <th>Estado atención</th>
                 <th>Estado</th>
                 <th>Observaciones</th>
               </tr>
@@ -934,7 +967,7 @@
   function updateDatalistsPlaceholder(){ /* no-op, mantenido por compatibilidad */ }
 
   // ---------- Navigation ----------
-  const views = ['registro','clientes','manifiesto','callcenters','equipo','usuarios'];
+  const views = ['registro','clientes','estado','manifiesto','callcenters','equipo','usuarios'];
   document.querySelectorAll('.nav-item').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
@@ -1556,6 +1589,7 @@
         <td class="num">${money(c.cartera)}</td>
         <td>${escapeHtml(c.contrato||'—')}</td>
         <td>${estado}</td>
+        <td>${badgeEstado(c.estado)}</td>
         <td class="sub">${escapeHtml(c.observaciones||'')}</td>
       </tr>`;
     }).join('');
@@ -1563,6 +1597,62 @@
   document.getElementById('buscar-cliente').addEventListener('input', renderClientes);
 
   // ---------- Búsqueda por documento / nombre / teléfono ----------
+  function badgeEstado(estado){
+    const e = estado || 'Activo';
+    const clase = e==='Finalizado' ? 'finalizado' : (e==='Invitado' ? 'invitado' : 'activo');
+    return `<span class="badge ${clase}">${escapeHtml(e)}</span>`;
+  }
+
+  // ---------- Pestaña Estado ----------
+  function ejecutarBusquedaEstado(){
+    const doc = document.getElementById('estado-buscar-documento').value.trim().toLowerCase();
+    const nom = document.getElementById('estado-buscar-nombre').value.trim().toLowerCase();
+    const cont = document.getElementById('estado-resultados');
+    if(!doc && !nom){ cont.innerHTML=''; return; }
+    const encontrados = clientes.filter(c=>
+      (!doc || (c.documento||'').toLowerCase().includes(doc)) &&
+      (!nom || c.usuario.toLowerCase().includes(nom))
+    );
+    if(encontrados.length===0){
+      cont.innerHTML = '<div class="comentarios-empty" style="padding:14px">No se encontraron clientes con esos datos.</div>';
+      return;
+    }
+    cont.innerHTML = `<table class="info-table" style="margin:0;border-top:none">
+      <tr><th>Nombre</th><th>Documento</th><th>Fecha</th><th>Estado actual</th><th>Cambiar a</th></tr>
+      ${encontrados.map(c=>`
+        <tr>
+          <td>${escapeHtml(c.usuario)}</td>
+          <td>${escapeHtml(c.documento||'—')}</td>
+          <td>${formatFecha(c.fecha)}</td>
+          <td>${badgeEstado(c.estado)}</td>
+          <td>
+            <select data-cambiar-estado="${c.id}" style="padding:5px 7px;font-size:12px">
+              <option value="Activo" ${c.estado==='Activo'?'selected':''}>Activo</option>
+              <option value="Finalizado" ${c.estado==='Finalizado'?'selected':''}>Finalizado</option>
+              <option value="Invitado" ${c.estado==='Invitado'?'selected':''}>Invitado</option>
+            </select>
+          </td>
+        </tr>`).join('')}
+      </table>`;
+    cont.querySelectorAll('[data-cambiar-estado]').forEach(sel=>{
+      sel.addEventListener('change', async ()=>{
+        const id = sel.dataset.cambiarEstado;
+        try{
+          const actualizado = await apiSend('PATCH', '/clientes/'+id+'/estado', { estado: sel.value });
+          const idx = clientes.findIndex(c=>String(c.id)===String(id));
+          if(idx>=0) clientes[idx] = actualizado;
+          showToast('Estado actualizado a '+sel.value);
+        }catch(e){ showToast(e.message||'No se pudo actualizar el estado'); }
+      });
+    });
+  }
+  document.getElementById('btn-buscar-estado').addEventListener('click', ejecutarBusquedaEstado);
+  ['estado-buscar-documento','estado-buscar-nombre'].forEach(id=>{
+    document.getElementById(id).addEventListener('keydown', (e)=>{
+      if(e.key==='Enter'){ e.preventDefault(); ejecutarBusquedaEstado(); }
+    });
+  });
+
   function ejecutarBusquedaCliente(){
     const doc = document.getElementById('buscar-documento').value.trim().toLowerCase();
     const nom = document.getElementById('buscar-nombre').value.trim().toLowerCase();
@@ -1665,7 +1755,7 @@
     if(!c) return;
     fichaClienteId = id;
     document.getElementById('ficha-nombre').textContent = c.usuario;
-    document.getElementById('ficha-fecha').textContent = 'Registrado el '+formatFecha(c.fecha);
+    document.getElementById('ficha-fecha').innerHTML = 'Registrado el '+formatFecha(c.fecha)+' &nbsp; '+badgeEstado(c.estado);
 
     document.getElementById('ficha-body-cliente').innerHTML = [
       seccionTabla('Datos personales', [

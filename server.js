@@ -161,6 +161,7 @@ async function initDb() {
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS numero_cuotas INTEGER;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS fecha_primera_cuota DATE;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cuotas JSONB DEFAULT '[]'::jsonb;
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS estado TEXT DEFAULT 'Activo';
   `);
 }
 
@@ -179,6 +180,7 @@ const clienteCols = `
   metodo_pago AS "metodoPago", metodo_pago_detalle AS "metodoPagoDetalle", elaborado_por AS "elaboradoPor",
   firma_huella AS "firmaHuella", productos,
   numero_cuotas AS "numeroCuotas", fecha_primera_cuota AS "fechaPrimeraCuota", cuotas,
+  estado,
   creado
 `;
 
@@ -211,10 +213,10 @@ app.post('/api/clientes', async (req, res) => {
         ciudad, codigo_venta, numero_venta,
         emergencia1_nombre, emergencia1_celular, emergencia2_nombre, emergencia2_celular,
         metodo_pago, elaborado_por, firma_huella, productos, closer2,
-        numero_cuotas, fecha_primera_cuota, cuotas, metodo_pago_detalle
+        numero_cuotas, fecha_primera_cuota, cuotas, metodo_pago_detalle, estado
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,
-        $35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50
+        $35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51
       ) RETURNING ${clienteCols}`,
       [
         c.fecha || null, c.usuario, c.edad || null, c.documento || null, c.fechaNacimiento || null,
@@ -241,11 +243,27 @@ app.post('/api/clientes', async (req, res) => {
         c.vta ? (c.numeroCuotas || null) : null,
         c.vta ? (c.fechaPrimeraCuota || null) : null,
         JSON.stringify(c.vta ? (Array.isArray(c.cuotas) ? c.cuotas : []) : []),
-        c.vta ? (c.metodoPagoDetalle || null) : null
+        c.vta ? (c.metodoPagoDetalle || null) : null,
+        c.vta ? 'Activo' : 'Invitado'
       ]
     );
     res.json(rows[0]);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al guardar cliente' }); }
+});
+
+app.patch('/api/clientes/:id/estado', async (req, res) => {
+  try {
+    const { estado } = req.body;
+    if (!['Activo', 'Finalizado', 'Invitado'].includes(estado)) {
+      return res.status(400).json({ error: 'Estado inválido' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE clientes SET estado = $1 WHERE id = $2 RETURNING ${clienteCols}`,
+      [estado, req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'No encontrado' });
+    res.json(rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al actualizar el estado' }); }
 });
 
 // ---------- Call Centers + TMK ----------
