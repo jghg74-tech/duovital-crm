@@ -1634,6 +1634,13 @@
         <tr>${pares.map(([,v])=>`<td>${escapeHtml(v||'—')}</td>`).join('')}</tr>
       </table>`;
   }
+  function tablaFilas(titulo, headers, filas){
+    return `<div class="sec-banner">${escapeHtml(titulo)}</div>
+      <table class="info-table">
+        <tr>${headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr>
+        ${filas.map(fila=>`<tr>${fila.map(v=>`<td>${escapeHtml(v||'—')}</td>`).join('')}</tr>`).join('')}
+      </table>`;
+  }
   let fichaClienteId = null;
   function abrirFicha(id){
     const c = clientes.find(x=>String(x.id)===String(id));
@@ -1684,9 +1691,13 @@
     ].join('');
 
     document.getElementById('ficha-body-comercial').innerHTML = [
-      seccionTabla('Proceso comercial', [
-        ['Call Center', c.callCenter],
-        ['TMK / Outsorsing', c.outsorsing],
+      `<div class="sec-banner">Locaciones</div>
+       <div class="sec-banner" style="background:var(--primary);border-radius:0">Locación</div>
+       <table class="info-table" style="margin-bottom:14px">
+         <tr><th>Call Center</th><th>TMK</th></tr>
+         <tr><td>${escapeHtml(c.callCenter||'—')}</td><td>${escapeHtml(c.outsorsing||'—')}</td></tr>
+       </table>`,
+      tablaFilas('Comerciales', ['Cargo','Nombre'], [
         ['Consultor', c.consultor],
         ['Closer 1', c.closer1],
         ['Closer 2', c.closer2],
