@@ -1702,27 +1702,7 @@
         ['Closer 1', c.closer1],
         ['Closer 2', c.closer2],
         ['Gerente', c.gerente]
-      ]),
-      seccionTabla('Estado de la atención', [
-        ['¿Tour?', c.tour ? 'Sí' : 'No'],
-        ['¿NT?', c.nt ? 'Sí' : 'No'],
-        ['¿Venta realizada?', c.vta ? 'Sí' : 'No']
-      ]),
-      c.vta ? seccionTabla('Datos de la venta', [
-        ['Ciudad', c.ciudad],
-        ['Código', c.codigoVenta],
-        ['No.', c.numeroVenta],
-        ['No. Contrato', c.contrato]
-      ]) : '',
-      c.vta && c.productos && c.productos.length ? `<div class="sec-banner">Productos</div>
-        <table class="info-table"><tr><th>Producto</th><th>Lote</th><th>Cantidad</th><th>Valor</th></tr>
-        ${c.productos.map(p=>`<tr><td>${escapeHtml(p.producto||'—')}</td><td>${escapeHtml(p.lote||'—')}</td><td>${escapeHtml(p.cantidad||'—')}</td><td>${money(p.valor)}</td></tr>`).join('')}
-        </table>` : '',
-      c.vta ? seccionTabla('Detalle del pago', [
-        ['Método de pago', [c.metodoPago, c.metodoPagoDetalle].filter(Boolean).join(' · ')],
-        ['Elaborado por', c.elaboradoPor],
-        ['Firma y huella', c.firmaHuella ? 'Sí' : 'No']
-      ]) : ''
+      ])
     ].join('');
 
     const carteraCont = document.getElementById('ficha-body-cartera');
