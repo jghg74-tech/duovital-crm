@@ -365,6 +365,7 @@
           <div class="section-label">Proceso comercial</div>
           <div class="grid three">
             <div class="field"><label>Fecha</label><input type="text" inputmode="numeric" class="date-input" id="f-fecha" placeholder="DD/MM/AAAA" maxlength="10" required></div>
+            <div class="field"><label>Fecha del contrato</label><input type="text" inputmode="numeric" class="date-input" id="f-fecha-contrato" placeholder="DD/MM/AAAA" maxlength="10"></div>
             <div class="field">
               <label>Call Center</label>
               <select id="f-callcenter">
@@ -1314,6 +1315,7 @@
   renderProductosVenta();
 
   document.getElementById('f-fecha').value = isoToDdmmaaaa(new Date().toISOString().slice(0,10));
+  document.getElementById('f-fecha-contrato').value = isoToDdmmaaaa(new Date().toISOString().slice(0,10));
 
   function formatDateInput(str){
     const digits = String(str||'').replace(/\D/g,'').slice(0,8);
@@ -1333,6 +1335,9 @@
     return `${d}/${m}/${y}`;
   }
   document.getElementById('f-fecha').addEventListener('input', (e)=>{
+    e.target.value = formatDateInput(e.target.value);
+  });
+  document.getElementById('f-fecha-contrato').addEventListener('input', (e)=>{
     e.target.value = formatDateInput(e.target.value);
   });
 
@@ -1474,6 +1479,7 @@
   function resetForm(){
     document.getElementById('form-cliente').reset();
     document.getElementById('f-fecha').value = isoToDdmmaaaa(new Date().toISOString().slice(0,10));
+    document.getElementById('f-fecha-contrato').value = isoToDdmmaaaa(new Date().toISOString().slice(0,10));
     document.getElementById('f-cartera').dataset.touched='';
     document.getElementById('cuotas-desglose').innerHTML = '';
     cuotasPagoFechas = {};
@@ -1495,8 +1501,15 @@
       showToast('La fecha debe tener el formato DD/MM/AAAA');
       return;
     }
+    const fechaContratoRaw = document.getElementById('f-fecha-contrato').value.trim();
+    const fechaContratoIso = fechaContratoRaw ? ddmmaaaaToIso(fechaContratoRaw) : '';
+    if(fechaContratoRaw && !fechaContratoIso){
+      showToast('La fecha del contrato debe tener el formato DD/MM/AAAA');
+      return;
+    }
     const cliente = {
       fecha: fechaIso,
+      fechaContrato: fechaContratoIso,
       usuario: document.getElementById('f-usuario').value.trim(),
       edad: document.getElementById('f-edad').value,
       documento: document.getElementById('f-documento').value.trim(),
@@ -1755,7 +1768,7 @@
     if(!c) return;
     fichaClienteId = id;
     document.getElementById('ficha-nombre').textContent = c.usuario;
-    document.getElementById('ficha-fecha').innerHTML = 'Registrado el '+formatFecha(c.fecha)+' &nbsp; '+badgeEstado(c.estado);
+    document.getElementById('ficha-fecha').innerHTML = 'Registrado el '+formatFecha(c.fecha)+(c.fechaContrato?' · Contrato: '+formatFecha(c.fechaContrato):'')+' &nbsp; '+badgeEstado(c.estado);
 
     document.getElementById('ficha-body-cliente').innerHTML = [
       seccionTabla('Datos personales', [

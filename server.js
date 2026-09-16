@@ -162,6 +162,7 @@ async function initDb() {
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS fecha_primera_cuota DATE;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cuotas JSONB DEFAULT '[]'::jsonb;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS estado TEXT DEFAULT 'Activo';
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS fecha_contrato DATE;
   `);
 }
 
@@ -180,7 +181,7 @@ const clienteCols = `
   metodo_pago AS "metodoPago", metodo_pago_detalle AS "metodoPagoDetalle", elaborado_por AS "elaboradoPor",
   firma_huella AS "firmaHuella", productos,
   numero_cuotas AS "numeroCuotas", fecha_primera_cuota AS "fechaPrimeraCuota", cuotas,
-  estado,
+  estado, fecha_contrato AS "fechaContrato",
   creado
 `;
 
@@ -213,10 +214,10 @@ app.post('/api/clientes', async (req, res) => {
         ciudad, codigo_venta, numero_venta,
         emergencia1_nombre, emergencia1_celular, emergencia2_nombre, emergencia2_celular,
         metodo_pago, elaborado_por, firma_huella, productos, closer2,
-        numero_cuotas, fecha_primera_cuota, cuotas, metodo_pago_detalle, estado
+        numero_cuotas, fecha_primera_cuota, cuotas, metodo_pago_detalle, estado, fecha_contrato
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,
-        $35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51
+        $35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52
       ) RETURNING ${clienteCols}`,
       [
         c.fecha || null, c.usuario, c.edad || null, c.documento || null, c.fechaNacimiento || null,
@@ -244,7 +245,8 @@ app.post('/api/clientes', async (req, res) => {
         c.vta ? (c.fechaPrimeraCuota || null) : null,
         JSON.stringify(c.vta ? (Array.isArray(c.cuotas) ? c.cuotas : []) : []),
         c.vta ? (c.metodoPagoDetalle || null) : null,
-        c.vta ? 'Activo' : 'Invitado'
+        c.vta ? 'Activo' : 'Invitado',
+        c.fechaContrato || null
       ]
     );
     res.json(rows[0]);
