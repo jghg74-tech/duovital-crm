@@ -778,14 +778,19 @@
     </div>
     <div class="ficha-tabs">
       <button type="button" class="ficha-tab active" data-ficha-tab="cliente">Cliente</button>
+      <button type="button" class="ficha-tab" data-ficha-tab="valores">Valores</button>
       <button type="button" class="ficha-tab" data-ficha-tab="salud">Salud</button>
       <button type="button" class="ficha-tab" data-ficha-tab="comercial">Comercial</button>
       <button type="button" class="ficha-tab" data-ficha-tab="cartera">Cartera</button>
       <button type="button" class="ficha-tab" data-ficha-tab="recibos">Recibos</button>
+      <button type="button" class="ficha-tab" data-ficha-tab="usos">Usos</button>
       <button type="button" class="ficha-tab" data-ficha-tab="comentarios">Comentarios</button>
     </div>
     <div id="ficha-panel-cliente">
       <div id="ficha-body-cliente"></div>
+    </div>
+    <div id="ficha-panel-valores" style="display:none">
+      <div id="ficha-body-valores"></div>
     </div>
     <div id="ficha-panel-salud" style="display:none">
       <div id="ficha-body-salud"></div>
@@ -817,6 +822,17 @@
         <button type="button" class="btn btn-primary" id="btn-agregar-recibo" style="padding:7px 14px;font-size:12.5px">Agregar recibo</button>
       </div>
       <div id="lista-recibos"></div>
+    </div>
+    <div id="ficha-panel-usos" style="display:none">
+      <div class="grid three" style="margin-bottom:8px">
+        <div class="field"><label>Tipo de tratamiento</label><input type="text" id="uso-tipo"></div>
+        <div class="field"><label>Fecha</label><input type="date" id="uso-fecha"></div>
+        <div class="field"><label>Producto</label><input type="text" id="uso-producto"></div>
+      </div>
+      <div class="modal-close-row" style="justify-content:flex-end;margin-top:0;margin-bottom:12px">
+        <button type="button" class="btn btn-primary" id="btn-agregar-uso" style="padding:7px 14px;font-size:12.5px">Agregar reconsulta</button>
+      </div>
+      <div id="lista-usos"></div>
     </div>
     <div id="ficha-panel-comentarios" style="display:none">
       <div class="field" style="margin-bottom:8px">
@@ -1828,15 +1844,28 @@
 
     renderCarteraTab(c);
 
+    document.getElementById('ficha-body-valores').innerHTML = !c.vta
+      ? '<div class="comentarios-empty">Este cliente no tiene venta registrada.</div>'
+      : seccionTabla('Valores', [
+          ['Número', c.numeroVenta],
+          ['Valor total', money(c.volumen)],
+          ['Valor abonado', money(c.cash)],
+          ['Saldo de cartera', money(c.cartera)],
+          ['Meses del tratamiento', c.numeroCuotas]
+        ]);
+
     document.querySelectorAll('.ficha-tab').forEach(t=>t.classList.remove('active'));
     document.querySelector('.ficha-tab[data-ficha-tab="cliente"]').classList.add('active');
-    ['cliente','salud','comercial','cartera','recibos','comentarios'].forEach(k=>{
+    ['cliente','valores','salud','comercial','cartera','recibos','usos','comentarios'].forEach(k=>{
       document.getElementById('ficha-panel-'+k).style.display = (k==='cliente') ? '' : 'none';
     });
     document.getElementById('comentario-nuevo').value='';
     document.getElementById('recibo-fecha').value = new Date().toISOString().slice(0,10);
     document.getElementById('recibo-numero').value='';
     document.getElementById('recibo-valor').value='';
+    document.getElementById('uso-tipo').value='';
+    document.getElementById('uso-fecha').value = new Date().toISOString().slice(0,10);
+    document.getElementById('uso-producto').value='';
     document.getElementById('btn-eliminar-cliente-detalle').style.display = hasPerm('borrarClientes') ? '' : 'none';
     document.getElementById('detalle-cliente').style.display='';
     document.getElementById('detalle-cliente').scrollIntoView({behavior:'smooth', block:'start'});
@@ -1856,11 +1885,12 @@
       document.querySelectorAll('.ficha-tab').forEach(t=>t.classList.remove('active'));
       tab.classList.add('active');
       const which = tab.dataset.fichaTab;
-      ['cliente','salud','comercial','cartera','recibos','comentarios'].forEach(k=>{
+      ['cliente','valores','salud','comercial','cartera','recibos','usos','comentarios'].forEach(k=>{
         document.getElementById('ficha-panel-'+k).style.display = (k===which) ? '' : 'none';
       });
       if(which==='comentarios') cargarComentarios();
       if(which==='recibos') cargarRecibos();
+      if(which==='usos') cargarUsos();
     });
   });
 
@@ -1964,6 +1994,47 @@
       await refrescarClienteActual();
       showToast('Recibo agregado, se descontó de la cartera');
     }catch(e){ showToast(e.message||'No se pudo guardar el recibo'); }
+  });
+
+  // ---------- Usos (reconsultas) ----------
+  async function cargarUsos(){
+    const cont = document.getElementById('lista-usos');
+    cont.innerHTML = '<div class="comentarios-empty">Cargando...</div>';
+    try{
+      const usos = await apiGet('/clientes/'+fichaClienteId+'/reconsultas');
+      if(usos.length===0){
+        cont.innerHTML = '<div class="comentarios-empty">Sin reconsultas registradas todavía.</div>';
+        return;
+      }
+      cont.innerHTML = `<table class="fin-table"><thead><tr>
+          <th>Fecha</th><th>Tipo de tratamiento</th><th>Producto</th><th>Usuario</th>
+        </tr></thead><tbody>
+        ${usos.map(u=>`
+          <tr>
+            <td>${formatFecha(u.fecha)}</td>
+            <td>${escapeHtml(u.tipoTratamiento||'—')}</td>
+            <td>${escapeHtml(u.producto||'—')}</td>
+            <td>${escapeHtml(u.usuarioNombre)}</td>
+          </tr>`).join('')}
+        </tbody></table>`;
+    }catch(e){
+      cont.innerHTML = '<div class="comentarios-empty">No se pudieron cargar las reconsultas.</div>';
+    }
+  }
+  document.getElementById('btn-agregar-uso').addEventListener('click', async ()=>{
+    const fecha = document.getElementById('uso-fecha').value;
+    if(!fecha){ showToast('Completa la fecha de la reconsulta'); return; }
+    try{
+      await apiSend('POST', '/clientes/'+fichaClienteId+'/reconsultas', {
+        fecha,
+        tipoTratamiento: document.getElementById('uso-tipo').value.trim(),
+        producto: document.getElementById('uso-producto').value.trim()
+      });
+      document.getElementById('uso-tipo').value='';
+      document.getElementById('uso-producto').value='';
+      cargarUsos();
+      showToast('Reconsulta agregada');
+    }catch(e){ showToast(e.message||'No se pudo guardar la reconsulta'); }
   });
 
   document.getElementById('ficha-cerrar').addEventListener('click', ()=>{

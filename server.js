@@ -107,6 +107,16 @@ async function initDb() {
       usuario_login TEXT,
       creado TIMESTAMPTZ DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS reconsultas (
+      id SERIAL PRIMARY KEY,
+      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      tipo_tratamiento TEXT,
+      fecha DATE,
+      producto TEXT,
+      usuario_nombre TEXT NOT NULL,
+      usuario_login TEXT,
+      creado TIMESTAMPTZ DEFAULT now()
+    );
     CREATE TABLE IF NOT EXISTS clientes (
       id SERIAL PRIMARY KEY,
       fecha DATE,
@@ -540,6 +550,41 @@ app.delete('/api/recibos/:id', requirePerm('borrarRecibos'), async (req, res) =>
     }
     res.json({ ok: true });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar el recibo' }); }
+});
+
+// ---------- Reconsultas (Usos) ----------
+app.get('/api/clientes/:id/reconsultas', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, tipo_tratamiento AS "tipoTratamiento", fecha, producto,
+              usuario_nombre AS "usuarioNombre", usuario_login AS "usuarioLogin", creado
+       FROM reconsultas WHERE cliente_id = $1 ORDER BY fecha DESC, creado DESC`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al leer reconsultas' }); }
+});
+
+app.post('/api/clientes/:id/reconsultas', async (req, res) => {
+  try {
+    const { tipoTratamiento, fecha, producto } = req.body;
+    if (!fecha) return res.status(400).json({ error: 'Falta la fecha de la reconsulta' });
+    const u = req.session.user;
+    const { rows } = await pool.query(
+      `INSERT INTO reconsultas (cliente_id, tipo_tratamiento, fecha, producto, usuario_nombre, usuario_login)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING id, tipo_tratamiento AS "tipoTratamiento", fecha, producto, usuario_nombre AS "usuarioNombre", usuario_login AS "usuarioLogin", creado`,
+      [req.params.id, tipoTratamiento || null, fecha, producto || null, u.nombre, u.usuario]
+    );
+    res.json(rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al guardar la reconsulta' }); }
+});
+
+app.delete('/api/reconsultas/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM reconsultas WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar la reconsulta' }); }
 });
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
