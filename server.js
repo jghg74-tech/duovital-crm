@@ -14,7 +14,7 @@ const pool = new Pool({
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 app.use(session({
   store: new pgSession({ pool, tableName: 'session', createTableIfMissing: true }),
   secret: process.env.SESSION_SECRET || 'duovital-crm-secret-2026',
@@ -23,6 +23,8 @@ app.use(session({
   cookie: { secure: 'auto', httpOnly: true, maxAge: 1000 * 60 * 60 * 24 * 7 }
 }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+const ESTADOS_VALIDOS = ['Activo', 'Finalizado', 'Invitado', 'Cancelado', 'Devolución/Retracto'];
 
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.status(401).json({ error: 'No autenticado' });
@@ -88,35 +90,6 @@ async function initDb() {
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permisos JSONB DEFAULT '{}'::jsonb;
     ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
     ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check CHECK (rol IN ('administrador','consultor','closer','gerente','superadministrador'));
-    CREATE TABLE IF NOT EXISTS comentarios (
-      id SERIAL PRIMARY KEY,
-      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-      usuario_nombre TEXT NOT NULL,
-      usuario_login TEXT,
-      comentario TEXT NOT NULL,
-      creado TIMESTAMPTZ DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS recibos (
-      id SERIAL PRIMARY KEY,
-      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-      numero_recibo TEXT,
-      concepto TEXT,
-      valor NUMERIC DEFAULT 0,
-      fecha DATE,
-      usuario_nombre TEXT NOT NULL,
-      usuario_login TEXT,
-      creado TIMESTAMPTZ DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS reconsultas (
-      id SERIAL PRIMARY KEY,
-      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-      tipo_tratamiento TEXT,
-      fecha DATE,
-      producto TEXT,
-      usuario_nombre TEXT NOT NULL,
-      usuario_login TEXT,
-      creado TIMESTAMPTZ DEFAULT now()
-    );
     CREATE TABLE IF NOT EXISTS clientes (
       id SERIAL PRIMARY KEY,
       fecha DATE,
@@ -173,6 +146,39 @@ async function initDb() {
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cuotas JSONB DEFAULT '[]'::jsonb;
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS estado TEXT DEFAULT 'Activo';
     ALTER TABLE clientes ADD COLUMN IF NOT EXISTS fecha_contrato DATE;
+    CREATE TABLE IF NOT EXISTS comentarios (
+      id SERIAL PRIMARY KEY,
+      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      usuario_nombre TEXT NOT NULL,
+      usuario_login TEXT,
+      comentario TEXT NOT NULL,
+      creado TIMESTAMPTZ DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS recibos (
+      id SERIAL PRIMARY KEY,
+      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      numero_recibo TEXT,
+      concepto TEXT,
+      valor NUMERIC DEFAULT 0,
+      fecha DATE,
+      usuario_nombre TEXT NOT NULL,
+      usuario_login TEXT,
+      creado TIMESTAMPTZ DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS reconsultas (
+      id SERIAL PRIMARY KEY,
+      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      tipo_tratamiento TEXT,
+      fecha DATE,
+      producto TEXT,
+      usuario_nombre TEXT NOT NULL,
+      usuario_login TEXT,
+      creado TIMESTAMPTZ DEFAULT now()
+    );
+    ALTER TABLE reconsultas ADD COLUMN IF NOT EXISTS numero INTEGER;
+    ALTER TABLE reconsultas ADD COLUMN IF NOT EXISTS estado TEXT DEFAULT 'Realizada';
+    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS llave_import TEXT;
+    CREATE INDEX IF NOT EXISTS idx_clientes_llave_import ON clientes(llave_import);
   `);
 }
 
@@ -266,7 +272,7 @@ app.post('/api/clientes', async (req, res) => {
 app.patch('/api/clientes/:id/estado', async (req, res) => {
   try {
     const { estado } = req.body;
-    if (!['Activo', 'Finalizado', 'Invitado'].includes(estado)) {
+    if (!ESTADOS_VALIDOS.includes(estado)) {
       return res.status(400).json({ error: 'Estado inválido' });
     }
     const { rows } = await pool.query(
@@ -556,9 +562,9 @@ app.delete('/api/recibos/:id', requirePerm('borrarRecibos'), async (req, res) =>
 app.get('/api/clientes/:id/reconsultas', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, tipo_tratamiento AS "tipoTratamiento", fecha, producto,
+      `SELECT id, tipo_tratamiento AS "tipoTratamiento", fecha, producto, numero, estado,
               usuario_nombre AS "usuarioNombre", usuario_login AS "usuarioLogin", creado
-       FROM reconsultas WHERE cliente_id = $1 ORDER BY fecha DESC, creado DESC`,
+       FROM reconsultas WHERE cliente_id = $1 ORDER BY fecha DESC NULLS LAST, creado DESC`,
       [req.params.id]
     );
     res.json(rows);
@@ -585,6 +591,178 @@ app.delete('/api/reconsultas/:id', async (req, res) => {
     await pool.query('DELETE FROM reconsultas WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Error al eliminar la reconsulta' }); }
+});
+
+
+// ---------- Carga masiva (importación desde Excel) ----------
+function normKey(x) {
+  return String(x == null ? '' : x).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+}
+function llaveCliente(usuario, contrato) {
+  return normKey(usuario) + '|' + normKey(contrato);
+}
+const esFechaIso = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v + 'T00:00:00Z'));
+const txt = (v) => (v === undefined || v === null || String(v).trim() === '') ? null : String(v).trim();
+const num = (v) => (v === undefined || v === null || v === '' || isNaN(Number(v))) ? null : Number(v);
+
+function generarCuotas(cartera, n, fechaIso) {
+  if (!cartera || !n || n < 1 || !esFechaIso(fechaIso)) return [];
+  const base = Math.floor(cartera / n);
+  const resto = cartera - base * n;
+  const [y, m, d] = fechaIso.split('-').map(Number);
+  const out = [];
+  let saldo = cartera;
+  for (let i = 0; i < n; i++) {
+    const primero = new Date(Date.UTC(y, (m - 1) + i, 1));
+    const ultimoDia = new Date(Date.UTC(primero.getUTCFullYear(), primero.getUTCMonth() + 1, 0)).getUTCDate();
+    const f = new Date(Date.UTC(primero.getUTCFullYear(), primero.getUTCMonth(), Math.min(d, ultimoDia)));
+    const monto = base + (i === n - 1 ? resto : 0);
+    out.push({ numero: i + 1, monto, capital: monto, saldo, fecha: f.toISOString().slice(0, 10), fechaPago: '', pagado: 0 });
+    saldo -= monto;
+  }
+  return out;
+}
+
+app.post('/api/importar', requirePerm('cargaMasiva'), async (req, res) => {
+  const { modo, actualizar } = req.body;
+  const clientesIn = Array.isArray(req.body.clientes) ? req.body.clientes : [];
+  const sueltasIn = Array.isArray(req.body.reconsultasSueltas) ? req.body.reconsultasSueltas : [];
+  const simular = modo === 'validar';
+  const u = req.session.user;
+  const resumen = { creados: 0, actualizados: 0, omitidos: 0, reconsultasCreadas: 0, reconsultasOmitidas: 0, equipoCreado: 0, callCentersCreados: 0, tmksCreados: 0, equipoNuevo: [], callCentersNuevos: [], tmksNuevos: [], errores: [] };
+  const db = await pool.connect();
+  try {
+    await db.query('BEGIN');
+    const equipoVisto = new Set();
+    const asegurarEquipo = async (tipo, nombre) => {
+      const n = txt(nombre); if (!n) return;
+      const k = tipo + '|' + normKey(n);
+      if (equipoVisto.has(k)) return;
+      equipoVisto.add(k);
+      const ex = await db.query('SELECT 1 FROM equipo WHERE tipo = $1 AND upper(trim(nombre)) = upper($2)', [tipo, n]);
+      if (!ex.rows.length) { await db.query('INSERT INTO equipo (tipo, nombre) VALUES ($1,$2)', [tipo, n]); resumen.equipoCreado++; resumen.equipoNuevo.push(tipo + ': ' + n); }
+    };
+    const ccVisto = new Set();
+    const asegurarCallCenter = async (callCenter, tmk) => {
+      const cc = txt(callCenter); if (!cc) return;
+      let id;
+      const ex = await db.query('SELECT id FROM call_centers WHERE upper(trim(nombre)) = upper($1)', [cc]);
+      if (ex.rows.length) id = ex.rows[0].id;
+      else { const ins = await db.query('INSERT INTO call_centers (nombre) VALUES ($1) RETURNING id', [cc]); id = ins.rows[0].id; resumen.callCentersCreados++; resumen.callCentersNuevos.push(cc); }
+      const t = txt(tmk); if (!t) return;
+      const k = id + '|' + normKey(t);
+      if (ccVisto.has(k)) return;
+      ccVisto.add(k);
+      const ext = await db.query('SELECT 1 FROM tmks WHERE call_center_id = $1 AND upper(trim(codigo)) = upper($2)', [id, t]);
+      if (!ext.rows.length) { await db.query('INSERT INTO tmks (call_center_id, codigo) VALUES ($1,$2)', [id, t]); resumen.tmksCreados++; resumen.tmksNuevos.push(cc + ': ' + t); }
+    };
+    const insertarReconsulta = async (clienteId, r, etiqueta) => {
+      const fecha = esFechaIso(r.fecha) ? r.fecha : null;
+      const tipo = txt(r.tipoTratamiento);
+      const numero = num(r.numero);
+      const estado = ['Realizada', 'Pendiente', 'Programada'].includes(r.estado) ? r.estado : 'Realizada';
+      const ex = await db.query(
+        `SELECT 1 FROM reconsultas WHERE cliente_id = $1 AND COALESCE(tipo_tratamiento,'') = $2
+           AND fecha IS NOT DISTINCT FROM $3::date AND numero IS NOT DISTINCT FROM $4::int AND COALESCE(estado,'Realizada') = $5`,
+        [clienteId, tipo || '', fecha, numero, estado]);
+      if (ex.rows.length) { resumen.reconsultasOmitidas++; return; }
+      await db.query(
+        `INSERT INTO reconsultas (cliente_id, tipo_tratamiento, fecha, producto, numero, estado, usuario_nombre, usuario_login)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [clienteId, tipo, fecha, txt(r.producto), numero, estado, u.nombre + ' (carga masiva)', u.usuario]);
+      resumen.reconsultasCreadas++;
+    };
+
+    for (const c of clientesIn) {
+      const etiqueta = `${c.usuario || '(sin nombre)'} · contrato ${c.contrato || '—'}`;
+      try {
+        if (!txt(c.usuario)) throw new Error('Falta el nombre del usuario');
+        if (!esFechaIso(c.fecha)) throw new Error('Fecha vacía o inválida');
+        const llave = llaveCliente(c.usuario, c.contrato);
+        const vta = c.vta === true || c.vta === 'Sí' || c.vta === 'Si';
+        const estado = ESTADOS_VALIDOS.includes(c.estado) ? c.estado : (vta ? 'Activo' : 'Invitado');
+        const volumen = num(c.volumen), cash = num(c.cash), cartera = num(c.cartera);
+        const nCuotas = Number.isInteger(num(c.numeroCuotas)) && num(c.numeroCuotas) > 0 ? num(c.numeroCuotas) : null;
+        const fPrimera = esFechaIso(c.fechaPrimeraCuota) ? c.fechaPrimeraCuota : null;
+
+        await asegurarEquipo('consultor', c.consultor);
+        await asegurarEquipo('closer', c.closer1);
+        await asegurarEquipo('closer', c.closer2);
+        await asegurarEquipo('gerente', c.gerente);
+        await asegurarCallCenter(c.callCenter, c.outsorsing);
+
+        const ex = await db.query('SELECT id FROM clientes WHERE llave_import = $1 LIMIT 1', [llave]);
+        let clienteId;
+        if (ex.rows.length) {
+          clienteId = ex.rows[0].id;
+          if (actualizar) {
+            const tieneRecibos = (await db.query('SELECT 1 FROM recibos WHERE cliente_id = $1 LIMIT 1', [clienteId])).rows.length > 0;
+            const campos = {
+              fecha: c.fecha, fecha_contrato: esFechaIso(c.fechaContrato) ? c.fechaContrato : null,
+              documento: txt(c.documento), telefono: txt(c.telefono), edad: txt(c.edad), ocupacion: txt(c.ocupacion),
+              estado_civil: txt(c.estadoCivil), acompanante: txt(c.acompanante), call_center: txt(c.callCenter), outsorsing: txt(c.outsorsing),
+              consultor: txt(c.consultor), closer: txt(c.closer1), closer2: txt(c.closer2), gerente: txt(c.gerente),
+              ciudad: txt(c.ciudad), metodo_pago: txt(c.metodoPago), observaciones: txt(c.observaciones),
+              estado: ESTADOS_VALIDOS.includes(c.estado) ? c.estado : null,
+              numero_cuotas: nCuotas, fecha_primera_cuota: fPrimera
+            };
+            if (!tieneRecibos) {
+              if (volumen !== null) campos.volumen = volumen;
+              if (cash !== null) campos.cash = cash;
+              if (cartera !== null) campos.cartera = cartera;
+              if (cartera && nCuotas && fPrimera) campos.cuotas = JSON.stringify(generarCuotas(cartera, nCuotas, fPrimera));
+            }
+            const cols = Object.keys(campos).filter(k => campos[k] !== null && campos[k] !== undefined);
+            if (cols.length) {
+              const sets = cols.map((k, i) => `${k} = $${i + 1}`).join(', ');
+              await db.query(`UPDATE clientes SET ${sets} WHERE id = $${cols.length + 1}`, [...cols.map(k => campos[k]), clienteId]);
+            }
+            resumen.actualizados++;
+          } else {
+            resumen.omitidos++;
+          }
+        } else {
+          const cuotas = (cartera && nCuotas && fPrimera) ? generarCuotas(cartera, nCuotas, fPrimera) : [];
+          const ins = await db.query(
+            `INSERT INTO clientes (fecha, fecha_contrato, usuario, edad, documento, telefono, ocupacion, estado_civil, acompanante,
+               call_center, outsorsing, consultor, closer, closer2, gerente, ciudad, metodo_pago, numero_cuotas, fecha_primera_cuota,
+               vta, volumen, cash, cartera, contrato, numero_venta, observaciones, estado, cuotas, llave_import)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
+             RETURNING id`,
+            [c.fecha, esFechaIso(c.fechaContrato) ? c.fechaContrato : c.fecha, txt(c.usuario), txt(c.edad), txt(c.documento), txt(c.telefono),
+             txt(c.ocupacion), txt(c.estadoCivil), txt(c.acompanante), txt(c.callCenter), txt(c.outsorsing), txt(c.consultor),
+             txt(c.closer1), txt(c.closer2), txt(c.gerente), txt(c.ciudad), txt(c.metodoPago), nCuotas, fPrimera,
+             vta, volumen || 0, cash || 0, cartera || 0, txt(c.contrato), txt(c.contrato), txt(c.observaciones), estado,
+             JSON.stringify(cuotas), llave]);
+          clienteId = ins.rows[0].id;
+          resumen.creados++;
+        }
+        for (const r of (Array.isArray(c.reconsultas) ? c.reconsultas : [])) await insertarReconsulta(clienteId, r, etiqueta);
+      } catch (e) {
+        resumen.errores.push({ usuario: c.usuario || '', contrato: c.contrato || '', error: e.message });
+      }
+    }
+
+    for (const r of sueltasIn) {
+      try {
+        const llave = llaveCliente(r.usuario, r.contrato);
+        const ex = await db.query('SELECT id FROM clientes WHERE llave_import = $1 LIMIT 1', [llave]);
+        if (!ex.rows.length) throw new Error('No existe un cliente con ese usuario y contrato');
+        await insertarReconsulta(ex.rows[0].id, r, '');
+      } catch (e) {
+        resumen.errores.push({ usuario: r.usuario || '', contrato: r.contrato || '', error: 'Reconsulta: ' + e.message });
+      }
+    }
+
+    await db.query(simular ? 'ROLLBACK' : 'COMMIT');
+    res.json(resumen);
+  } catch (e) {
+    try { await db.query('ROLLBACK'); } catch (_) {}
+    console.error(e);
+    res.status(500).json({ error: 'Error en la carga: ' + e.message });
+  } finally {
+    db.release();
+  }
 });
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
